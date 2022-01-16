@@ -15,8 +15,7 @@ config = edict()
 config.OUTPUT_DIR = ''
 config.LOG_DIR = './logs'
 config.DATA_DIR = ''
-config.GPUS = 0
-config.LOCAL_RANK = [0,1]
+config.GPUS = 1
 config.WORKERS = 4
 config.PRINT_FREQ = 20
 # config.KEYPOINTS = 18
@@ -60,7 +59,7 @@ config.TRAIN.BEGIN_EPOCH = 0
 config.TRAIN.END_EPOCH = 80
 
 config.TRAIN.RESUME = False
-config.TRAIN.CHECKPOINT = ''
+config.TRAIN.CHECKPOINT = './data/'
 
 config.TRAIN.BATCH_SIZE = 1
 config.TRAIN.SHUFFLE = True
