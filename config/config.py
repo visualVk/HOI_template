@@ -19,7 +19,6 @@ config.DATA_DIR = ''
 config.GPUS = 1
 config.WORKERS = 4
 config.PRINT_FREQ = 20
-# config.KEYPOINTS = 18
 
 # Cudnn related params
 config.CUDNN = edict()
@@ -144,37 +143,10 @@ def update_dir(model_dir, log_dir, data_dir):
         config.DATA_DIR = data_dir
 
     config.DATASET.ROOT = os.path.join(
-            config.DATA_DIR, config.DATASET.ROOT)
+        config.DATA_DIR, config.DATASET.ROOT)
 
     config.TEST.COCO_BBOX_FILE = os.path.join(
-            config.DATA_DIR, config.TEST.COCO_BBOX_FILE)
+        config.DATA_DIR, config.TEST.COCO_BBOX_FILE)
 
     config.MODEL.PRETRAINED = os.path.join(
-            config.DATA_DIR, config.MODEL.PRETRAINED)
-
-
-def get_model_name(cfg):
-    name = cfg.MODEL.NAME
-    full_name = cfg.MODEL.NAME
-    extra = cfg.MODEL.EXTRA
-    if name in ['pose_resnet']:
-        name = '{model}_{num_layers}'.format(
-            model=name,
-            num_layers=extra.NUM_LAYERS)
-        deconv_suffix = ''.join(
-            'd{}'.format(num_filters)
-            for num_filters in extra.NUM_DECONV_FILTERS)
-        full_name = '{height}x{width}_{name}_{deconv_suffix}'.format(
-            height=cfg.MODEL.IMAGE_SIZE[1],
-            width=cfg.MODEL.IMAGE_SIZE[0],
-            name=name,
-            deconv_suffix=deconv_suffix)
-    else:
-        raise ValueError('Unkown model: {}'.format(cfg.MODEL))
-
-    return name, full_name
-
-
-if __name__ == '__main__':
-    import sys
-    gen_config(sys.argv[1])
+        config.DATA_DIR, config.MODEL.PRETRAINED)
