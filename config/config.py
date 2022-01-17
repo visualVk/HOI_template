@@ -17,7 +17,7 @@ config.PROJECT_NAME = 'HOI_Template'
 config.LOG_DIR = './logs'
 config.DATA_DIR = ''
 config.GPUS = 1
-config.WORKERS = 4
+config.WORKERS = 1
 config.PRINT_FREQ = 20
 
 # Cudnn related params
@@ -56,7 +56,7 @@ config.TRAIN.GAMMA1 = 0.99
 config.TRAIN.GAMMA2 = 0.0
 
 config.TRAIN.BEGIN_EPOCH = 0
-config.TRAIN.END_EPOCH = 80
+config.TRAIN.END_EPOCH = 5
 
 config.TRAIN.RESUME = False
 config.TRAIN.CHECKPOINT = './data/'

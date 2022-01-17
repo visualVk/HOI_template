@@ -3,6 +3,7 @@ import os
 import sys
 from config.config import config, update_config_by_yaml
 from tools.train import train
+from tools.test import test
 import utils.misc as utils
 
 os.chdir(sys.path[0])
@@ -36,3 +37,4 @@ if __name__ == '__main__':
     utils.init_distributed_mode(args)
     utils.fix_random_seed()
     train(args, config)
+    test(args,config)
