@@ -4,6 +4,7 @@ import os
 import torch
 import easydict
 from typing import List
+import utils.misc as utils
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 
@@ -44,25 +45,27 @@ class BaseModel(object):
             self.dataloader.sampler.set_epoch(epoch)
             step = self.train_one_epoch(step, epoch)
 
-        model_save = {}
-        optim_save = {}
+            # save checkpoint
+            if utils.is_main_process() \
+                    and epoch >= self.config.TRAIN.SAVE_BEGIN \
+                    and epoch % self.config.TRAIN.INTERVAL_SAVE == 0:
+                model_save = {}
+                optim_save = {}
 
-        for i in range(len(self.models)):
-            model = self.models[i].module
-            model_save[f'model_{i}'] = model.state_dict()
+                for i in range(len(self.models)):
+                    model = self.models[i].module
+                    model_save[f'model_{i}'] = model.state_dict()
 
-        optim_save['optim'] = self.optimizer.state_dict()
+                optim_save['optim'] = self.optimizer.state_dict()
 
-        save_dict = {**model_save, **optim_save}
+                save_dict = {**model_save, **optim_save}
 
-        if epoch >= self.config.TRAIN.SAVE_BEGIN \
-                and epoch % self.config.TRAIN.INTERVAL_SAVE:
-            if not os.path.exists(self.config.TRAIN.CHECKPOINT):
-                os.mkdir(os.path.join(self.config.TRAIN.CHECKPOINT))
+                if not os.path.exists(self.config.TRAIN.CHECKPOINT):
+                    os.mkdir(os.path.join(self.config.TRAIN.CHECKPOINT))
 
-            checkpoint_path = os.path.join(
-                self.config.TRAIN.CHECKPOINT, f'checkpoint_{epoch}.pth')
-            torch.save(save_dict, checkpoint_path)
+                checkpoint_path = os.path.join(
+                    self.config.TRAIN.CHECKPOINT, f'checkpoint_{self.args.local_rank}_{epoch}.pth')
+                torch.save(save_dict, checkpoint_path)
 
     def train_one_epoch(self, step, epoch) -> int:
         """write code of training model at one epoch

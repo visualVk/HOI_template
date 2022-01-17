@@ -5,7 +5,7 @@
 - config  
   buildin configuration
 - data  
-  train data, val data or checkpoint
+  train data, val data or checkpoint(name pattern: 'checkpoint_{local_rank}_{epoch}.pth')
 - dataset  
   customed dataset
 - logs  

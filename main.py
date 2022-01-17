@@ -32,7 +32,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         "HOI Transformer training script", parents=[get_parse_args()])
     args = parser.parse_args()
-    utils.preprocess_config(args)
+    preprocess_config(args)
     utils.init_distributed_mode(args)
     utils.fix_random_seed()
     train(args, config)
