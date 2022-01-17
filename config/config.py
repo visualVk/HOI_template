@@ -13,6 +13,7 @@ from easydict import EasyDict as edict
 config = edict()
 
 config.OUTPUT_DIR = ''
+config.PROJECT_NAME = 'HOI_Template'
 config.LOG_DIR = './logs'
 config.DATA_DIR = ''
 config.GPUS = 1
@@ -60,6 +61,8 @@ config.TRAIN.END_EPOCH = 80
 
 config.TRAIN.RESUME = False
 config.TRAIN.CHECKPOINT = './data/'
+config.TRAIN.SAVE_BEGIN = 40
+config.TRAIN.INTERVAL_SAVE = 5
 
 config.TRAIN.BATCH_SIZE = 1
 config.TRAIN.SHUFFLE = True
@@ -73,16 +76,6 @@ config.TEST.BATCH_SIZE = 32
 config.TEST.FLIP_TEST = False
 config.TEST.POST_PROCESS = True
 config.TEST.SHIFT_HEATMAP = True
-
-config.TEST.USE_GT_BBOX = False
-
-# debug
-config.DEBUG = edict()
-config.DEBUG.DEBUG = False
-config.DEBUG.SAVE_BATCH_IMAGES_GT = False
-config.DEBUG.SAVE_BATCH_IMAGES_PRED = False
-config.DEBUG.SAVE_HEATMAPS_GT = False
-config.DEBUG.SAVE_HEATMAPS_PRED = False
 
 
 def _update_dict(k, v):
