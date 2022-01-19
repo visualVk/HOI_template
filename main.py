@@ -1,9 +1,10 @@
 import argparse
 import os
 import sys
-from config.config import config, update_config_by_yaml
+from config.config import config, update_config_by_yaml, gen_config
 from tools.train import train
 from tools.test import test
+from tools.hoitr import train as hoi_train
 import utils.misc as utils
 
 os.chdir(sys.path[0])
@@ -26,7 +27,9 @@ def get_parse_args():
 
 def preprocess_config(args: argparse.Namespace):
     update_config_by_yaml(args.path)
-    args.local_rank = int(os.environ["LOCAL_RANK"])
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    if config.DDP:
+        args.local_rank = int(os.environ["LOCAL_RANK"])
 
 
 if __name__ == '__main__':
@@ -34,7 +37,11 @@ if __name__ == '__main__':
         "HOI Transformer training script", parents=[get_parse_args()])
     args = parser.parse_args()
     preprocess_config(args)
-    utils.init_distributed_mode(args)
-    utils.fix_random_seed()
+    # whether use DDP
+    if config.DDP:
+        utils.init_distributed_mode(args)
+
+    utils.fix_random_seed(args, config)
+    # hoi_train(args, config)
     train(args, config)
     test(args,config)

@@ -8,7 +8,7 @@ import easydict
 
 def prepare_train(args: argparse.Namespace, config: easydict):
     model = Model(5, 2)
-    train_dataset = RandomDataset(5, 10)
+    train_dataset = RandomDataset(5, 10) # below 100, label doesn't have negative number
     val_dataset = RandomDataset(5, 10)
     train_base_model = TrainSMPN(args, config, train_dataset, [model])
     # train_base_model = TrainSMPN.init_with_train_and_val(

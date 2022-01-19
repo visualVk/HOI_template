@@ -19,54 +19,80 @@ config.DATA_DIR = ''
 config.GPUS = 1
 config.WORKERS = 1
 config.PRINT_FREQ = 20
+config.SEED = 2112112047
+config.DDP = False
+
+# Model
+config.MODEL = edict()
+config.MODEL.BACKBONE = 'resnet50'
+config.MODEL.HIDDEN_DIM = 128
+config.MODEL.POSITION_EMB = 'sine'
+config.MODEL.NHEAD = 8
+config.MODEL.NUM_QUERIES = 100
+config.MODEL.ENC_LAYERS = 6
+config.MODEL.DEC_LAYERS = 6
+config.MODEL.DROPOUT = 0.1
+config.MODEL.AUX_LOSS = False
+config.MODEL.DIM_FEEDFORWARD = 512
+config.MODEL.BEST_MODEL = './data/pretrain_model.pth'
+config.MODEL.PRETRAINED = False
 
 # Cudnn related params
 config.CUDNN = edict()
-config.CUDNN.BENCHMARK = True
-config.CUDNN.DETERMINISTIC = False
-config.CUDNN.ENABLED = True
+config.CUDNN.BENCHMARK = False
+config.CUDNN.DETERMINISTIC = True
+config.CUDNN.ENABLED = False
 
 # DATASET related params
 config.DATASET = edict()
 config.DATASET.ROOT = 'E:/dataset/'
-config.DATASET.DATASET = 'mpii'
-config.DATASET.MPII_ORG_ANNO = 'mpii_human_pose_v1_u12_2/mpii_human_pose_v1_u12_1.mat'
-config.DATASET.MPII_ANNO = 'mpii_human_pose.json'
-config.DATASET.TRAIN_ANNO = 'train_joints.csv'
-config.DATASET.VAL_ANNO = 'train_joints.csv'
-config.DATASET.TEST_ANNO = 'test_joints.csv'
-config.DATASET.TRAIN_SET = 'images'
-config.DATASET.TEST_SET = 'test_joints.csv'
-config.DATASET.DATA_FORMAT = 'jpg'
-config.DATASET.HYBRID_JOINTS_TYPE = ''
-config.DATASET.SELECT_DATA = False
+config.DATASET.NAME = 'hico'
+config.DATASET.IMAGES = 'images/train2015images/'
+config.DATASET.ANNO = 'anno/hico_trainval_remake.odgt'
+config.DATASET.INTERACTION_NAME = 'anno/hico_verb_names.json'
 
-# train
+# Matcher
+config.MATCHER = edict()
+config.MATCHER.COST_CLASS = 1
+config.MATCHER.COST_BBOX = 5
+config.MATCHER.COST_GIOU = 2
+
+# Criterion
+config.CRITERION = edict()
+config.CRITERION.DICE_LOSS_COEF = 1
+config.CRITERION.BBOX_LOSS_COEF = 5
+config.CRITERION.GIOU_LOSS_COEF = 2
+config.CRITERION.EOS_COEF = 0.02
+
+# Train
 config.TRAIN = edict()
 
 config.TRAIN.LR_FACTOR = 0.1
-config.TRAIN.LR_STEP = [90, 110]
-config.TRAIN.LR = 0.001
+config.TRAIN.LR_STEP = 5
+config.TRAIN.LR = 1e-4
+config.TRAIN.LR_BACKBONE = 1e-5
 
 config.TRAIN.OPTIMIZER = 'SGD'
 config.TRAIN.MOMENTUM = 0.9
-config.TRAIN.WD = 0.0001
+config.TRAIN.WD = 1e-4
 config.TRAIN.NESTEROV = False
 config.TRAIN.GAMMA1 = 0.99
 config.TRAIN.GAMMA2 = 0.0
 
+config.TRAIN.CLIP_MAX_NORM = 0.1
+
 config.TRAIN.BEGIN_EPOCH = 0
-config.TRAIN.END_EPOCH = 5
+config.TRAIN.END_EPOCH = 10
 
 config.TRAIN.RESUME = False
 config.TRAIN.CHECKPOINT = './data/'
-config.TRAIN.SAVE_BEGIN = 40
-config.TRAIN.INTERVAL_SAVE = 5
+config.TRAIN.SAVE_BEGIN = 4
+config.TRAIN.INTERVAL_SAVE = 1
 
 config.TRAIN.BATCH_SIZE = 1
-config.TRAIN.SHUFFLE = True
+config.TRAIN.SHUFFLE = False
 
-# testing
+# Test
 config.TEST = edict()
 
 # size of images for each device

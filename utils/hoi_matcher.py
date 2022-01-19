@@ -1,4 +1,5 @@
 import torch
+import easydict
 from scipy.optimize import linear_sum_assignment
 from torch import nn
 
@@ -51,11 +52,16 @@ class HungarianMatcher(nn.Module):
         bs, num_queries = outputs["action_pred_logits"].shape[:2]  # 2, 100
 
         # We flatten to compute the cost matrices in a batch
-        human_out_prob = outputs["human_pred_logits"].flatten(0, 1).softmax(-1)  # [bs * num_queries, num_classes]
-        human_out_bbox = outputs["human_pred_boxes"].flatten(0, 1)  # [bs * num_queries, 4]
-        object_out_prob = outputs["object_pred_logits"].flatten(0, 1).softmax(-1)  # [bs * num_queries, num_classes]
-        object_out_bbox = outputs["object_pred_boxes"].flatten(0, 1)  # [bs * num_queries, 4]
-        action_out_prob = outputs["action_pred_logits"].flatten(0, 1).softmax(-1)  # [bs * num_queries, num_classes]
+        human_out_prob = outputs["human_pred_logits"].flatten(
+            0, 1).softmax(-1)  # [bs * num_queries, num_classes]
+        human_out_bbox = outputs["human_pred_boxes"].flatten(
+            0, 1)  # [bs * num_queries, 4]
+        object_out_prob = outputs["object_pred_logits"].flatten(
+            0, 1).softmax(-1)  # [bs * num_queries, num_classes]
+        object_out_bbox = outputs["object_pred_boxes"].flatten(
+            0, 1)  # [bs * num_queries, 4]
+        action_out_prob = outputs["action_pred_logits"].flatten(
+            0, 1).softmax(-1)  # [bs * num_queries, num_classes]
 
         # Also concat the target labels and boxes
         human_tgt_ids = torch.cat([v["human_labels"] for v in targets])
@@ -76,8 +82,11 @@ class HungarianMatcher(nn.Module):
         object_cost_bbox = torch.cdist(object_out_bbox, object_tgt_box, p=1)
 
         # Compute the giou cost betwen boxes
-        human_cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(human_out_bbox), box_cxcywh_to_xyxy(human_tgt_box))
-        object_cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(object_out_bbox), box_cxcywh_to_xyxy(object_tgt_box))
+        human_cost_giou = - \
+            generalized_box_iou(box_cxcywh_to_xyxy(
+                human_out_bbox), box_cxcywh_to_xyxy(human_tgt_box))
+        object_cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(
+            object_out_bbox), box_cxcywh_to_xyxy(object_tgt_box))
 
         beta_1, beta_2 = 1.2, 1
         alpha_h, alpha_o, alpha_r = 1, 1, 2
@@ -86,18 +95,21 @@ class HungarianMatcher(nn.Module):
         l_cls_r = alpha_r * self.cost_class * action_cost_class
         l_box_h = self.cost_bbox * human_cost_bbox + self.cost_giou * human_cost_giou
         l_box_o = self.cost_bbox * object_cost_bbox + self.cost_giou * object_cost_giou
-        l_cls_all = (l_cls_h + l_cls_o + l_cls_r) / (alpha_h + alpha_o + alpha_r)
+        l_cls_all = (l_cls_h + l_cls_o + l_cls_r) / \
+            (alpha_h + alpha_o + alpha_r)
         l_box_all = (l_box_h + l_box_o) / 2
         C = beta_1 * l_cls_all + beta_2 * l_box_all
 
         C = C.view(bs, num_queries, -1).cpu()
 
         sizes = [len(v["human_boxes"]) for v in targets]
-        indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+        indices = [linear_sum_assignment(c[i])
+                   for i, c in enumerate(C.split(sizes, -1))]
 
-        result = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
+        result = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(
+            j, dtype=torch.int64)) for i, j in indices]
         return result
 
 
-def build_matcher(args):
-    return HungarianMatcher(cost_class=args.set_cost_class, cost_bbox=args.set_cost_bbox, cost_giou=args.set_cost_giou)
+def build_matcher(config: easydict.EasyDict):
+    return HungarianMatcher(cost_class=config.MATCHER.COST_CLASS, cost_bbox=config.MATCHER.COST_BBOX, cost_giou=config.MATCHER.COST_GIOU)
