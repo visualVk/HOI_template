@@ -589,11 +589,14 @@ class HoiDetection(VisionDataset):
         img_name = ann['image_id']
         target = ann['annotations']
         if 'train2015' in img_name:
-            img_path = './data/hico/images/train2015/%s' % img_name
+            # img_path = './data/hico/images/train2015/%s' % img_name
+            img_path = os.path.join(config.DATASET.ROOT,config.DATASET.NAME,config.DATASET.IMAGES)
         elif 'test2015' in img_name:
-            img_path = './data/hico/images/test2015/%s' % img_name
+            # img_path = './data/hico/images/test2015/%s' % img_name
+            img_path = os.path.join(config.DATASET.ROOT,config.DATASET.NAME,config.DATASET.TEST_IMAGES)
         else:  # For single image visualization.
             raise NotImplementedError()
+        img_path = os.path.join(img_path, img_name)
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         img = Image.fromarray(img[:, :, ::-1]).convert('RGB')
         if self.transforms is not None:

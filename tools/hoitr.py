@@ -8,7 +8,7 @@ from dataset import build_dataset
 
 def train(args: argparse.Namespace, config: easydict.EasyDict):
     model = build_model(args, config)
-    dataset = build_dataset('train', config)
+    dataset = build_dataset(image_set='train', config=config)
     device = torch.device('cpu')
     if torch.cuda.is_available() and config.CUDNN.ENABLED:
         if config.DDP:

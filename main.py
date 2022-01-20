@@ -19,6 +19,7 @@ def get_parse_args():
     parser.add_argument("--world_size", default=0, type=int, help="World size")
     parser.add_argument("-nr", "--nr", default=0, type=int,
                         help="ranking within the nodes")
+    parser.add_argument("--backend", default='gloo', type=str, help="ddp backend")
     parser.add_argument("-p", "--path", type=str,
                         default="./config.yaml", help="config written by yaml path")
 

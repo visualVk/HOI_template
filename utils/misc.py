@@ -80,7 +80,7 @@ def init_distributed_mode(args: argparse.Namespace):
     torch.cuda.set_device(args.local_rank)
 
     dist.init_process_group(
-        backend="gloo", init_method="env://", rank=args.local_rank)
+        backend=args.backend, init_method="env://", rank=args.local_rank)
 
 
 def reduce_dict(input_dict, average=True):

@@ -63,7 +63,6 @@ class HoiTR(nn.Module):
             samples = nested_tensor_from_tensor_list(samples)
         features, pos = self.backbone(samples)
         # features: [feat + mask], only fetch the highest level feature
-        assert isinstance(features, List[NestedTensor])
         src, mask = features[-1].decompose()
         assert mask is not None
         # detr return query and mask, we only need query

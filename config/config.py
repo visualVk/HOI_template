@@ -20,7 +20,7 @@ config.GPUS = 1
 config.WORKERS = 1
 config.PRINT_FREQ = 20
 config.SEED = 2112112047
-config.DDP = False
+config.DDP = True
 
 # Model
 config.MODEL = edict()
@@ -41,13 +41,14 @@ config.MODEL.PRETRAINED = False
 config.CUDNN = edict()
 config.CUDNN.BENCHMARK = False
 config.CUDNN.DETERMINISTIC = True
-config.CUDNN.ENABLED = False
+config.CUDNN.ENABLED = True
 
 # DATASET related params
 config.DATASET = edict()
-config.DATASET.ROOT = 'E:/dataset/'
+config.DATASET.ROOT = '/root/autodl-tmp/data/'
 config.DATASET.NAME = 'hico'
-config.DATASET.IMAGES = 'images/train2015images/'
+config.DATASET.IMAGES = 'images/train2015/'
+config.DATASET.TEST_IMAGES = 'images/test2015/'
 config.DATASET.ANNO = 'anno/hico_trainval_remake.odgt'
 config.DATASET.INTERACTION_NAME = 'anno/hico_verb_names.json'
 
@@ -68,7 +69,7 @@ config.CRITERION.EOS_COEF = 0.02
 config.TRAIN = edict()
 
 config.TRAIN.LR_FACTOR = 0.1
-config.TRAIN.LR_STEP = 5
+config.TRAIN.LR_STEP = 200
 config.TRAIN.LR = 1e-4
 config.TRAIN.LR_BACKBONE = 1e-5
 

@@ -108,8 +108,10 @@ class HoiTrainModel(TrainBaseModel):
 
                 tbar.update()
                 tbar.set_postfix(
-                    loss=losses.detach().cpu().item(), lr=self.optimizer.param_groups[0]['lr'])
-                self.train_meter.update(losses.detach().cpu().item)
+                    loss=losses.detach().cpu().item(),
+                    lr1=self.optimizer.param_groups[0]['lr'],
+                    lr2=self.optimizer.param_groups[1]['lr'])
+                self.train_meter.update(losses.detach().cpu().item())
                 step += 1
 
     def val_one_epoch(self, epoch):
