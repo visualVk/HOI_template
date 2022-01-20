@@ -55,7 +55,7 @@ class TrainBaseModel(object):
             sampler = DistributedSampler(dataset)
         else:
             sampler = RandomSampler(dataset)
-        dataloader = DataLoader(dataset=dataset,
+        dataloader = DataLoader(dataset=dataset, collate_fn=utils.collate_fn,
                                 batch_size=self.config.TRAIN.BATCH_SIZE, sampler=sampler, shuffle=False,
                                 num_workers=self.config.WORKERS, pin_memory=True, drop_last=True)
         return dataloader

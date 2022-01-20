@@ -42,6 +42,6 @@ if __name__ == '__main__':
         utils.init_distributed_mode(args)
 
     utils.fix_random_seed(args, config)
-    # hoi_train(args, config)
-    train(args, config)
-    test(args,config)
+    hoi_train(args, config)
+    # train(args, config)
+    # test(args,config)

@@ -4,9 +4,8 @@ import torch.nn as nn
 import easydict
 import torch.nn.functional as F
 import torch
-from torch.nn import Transformer
 from loss.hoi_criterion import SetCriterion
-from model.transformer import build_transformer
+from model.transformer import build_transformer,Transformer
 from model.backbone import build_backbone
 from utils.hoi_matcher import build_matcher as build_hoi_matcher
 from model.nested_tensor import NestedTensor, nested_tensor_from_tensor_list
@@ -67,6 +66,7 @@ class HoiTR(nn.Module):
         assert isinstance(features, List[NestedTensor])
         src, mask = features[-1].decompose()
         assert mask is not None
+        # detr return query and mask, we only need query
         hs = self.transformer(self.input_proj(src), mask,
                               self.query_embed.weight, pos[-1])[0]
 
