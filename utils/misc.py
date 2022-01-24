@@ -29,6 +29,9 @@ class AverageMeter(object):
     def avg(self):
         return self._avg
 
+    def global_avg(self):
+        return self.sum / self.count
+
     def synchronize_between_process(self):
         if not is_dist_avail_and_initialized():
             return

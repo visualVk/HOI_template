@@ -34,7 +34,7 @@ config.MODEL.DEC_LAYERS = 6
 config.MODEL.DROPOUT = 0.1
 config.MODEL.AUX_LOSS = False
 config.MODEL.DIM_FEEDFORWARD = 512
-config.MODEL.BEST_MODEL = './data/pretrain_model.pth'
+config.MODEL.BEST_MODEL = 'pretrain_model.pth'
 config.MODEL.PRETRAINED = False
 
 # Cudnn related params
@@ -45,7 +45,8 @@ config.CUDNN.ENABLED = True
 
 # DATASET related params
 config.DATASET = edict()
-config.DATASET.ROOT = '/root/autodl-tmp/data/'
+# config.DATASET.ROOT = '/root/autodl-tmp/data/'
+config.DATASET.ROOT = 'E:/dataset'
 config.DATASET.NAME = 'hico'
 config.DATASET.IMAGES = 'images/train2015/'
 config.DATASET.TEST_IMAGES = 'images/test2015/'

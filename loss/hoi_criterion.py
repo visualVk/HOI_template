@@ -30,7 +30,7 @@ class SetCriterion(nn.Module):
         self.weight_dict = weight_dict
         self.eos_coef = eos_coef
         self.losses = losses
-
+        # why num_humans plus 1: maybe you will predict no human or empty set, so, in fact, we will 3 classes: foreground, background and no object
         human_empty_weight = torch.ones(num_humans + 1)
         human_empty_weight[-1] = self.eos_coef
         self.register_buffer('human_empty_weight', human_empty_weight)
@@ -117,7 +117,7 @@ class SetCriterion(nn.Module):
         """
         assert 'human_pred_boxes' in outputs
         assert 'object_pred_boxes' in outputs
-
+        # indice: calculated by minimum match loss which use matcher to calculate
         idx = self._get_src_permutation_idx(indices)
 
         human_src_boxes = outputs['human_pred_boxes'][idx]
