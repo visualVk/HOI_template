@@ -20,11 +20,12 @@ config.GPUS = 1
 config.WORKERS = 1
 config.PRINT_FREQ = 20
 config.SEED = 2112112047
-config.DDP = True
+config.DDP = False  # debug must be False
 
 # Model
 config.MODEL = edict()
 config.MODEL.BACKBONE = 'resnet50'
+config.MODEL.NAME = "SMPNet"
 config.MODEL.HIDDEN_DIM = 128
 config.MODEL.POSITION_EMB = 'sine'
 config.MODEL.NHEAD = 8
@@ -34,7 +35,7 @@ config.MODEL.DEC_LAYERS = 6
 config.MODEL.DROPOUT = 0.1
 config.MODEL.AUX_LOSS = False
 config.MODEL.DIM_FEEDFORWARD = 512
-config.MODEL.BEST_MODEL = 'pretrain_model.pth'
+config.MODEL.BEST_MODEL = './data'
 config.MODEL.PRETRAINED = False
 
 # Cudnn related params
@@ -48,7 +49,7 @@ config.DATASET = edict()
 # config.DATASET.ROOT = '/root/autodl-tmp/data/'
 config.DATASET.ROOT = 'E:/dataset'
 config.DATASET.NAME = 'hico'
-config.DATASET.IMAGES = 'images/train2015/'
+config.DATASET.TRAIN_IMAGES = 'images/train2015/'
 config.DATASET.TEST_IMAGES = 'images/test2015/'
 config.DATASET.ANNO = 'anno/hico_trainval_remake.odgt'
 config.DATASET.INTERACTION_NAME = 'anno/hico_verb_names.json'
@@ -87,7 +88,7 @@ config.TRAIN.BEGIN_EPOCH = 0
 config.TRAIN.END_EPOCH = 10
 
 config.TRAIN.RESUME = False
-config.TRAIN.CHECKPOINT = './data/'
+config.TRAIN.CHECKPOINT = './data/checkpoint'
 config.TRAIN.SAVE_BEGIN = 4
 config.TRAIN.INTERVAL_SAVE = 1
 

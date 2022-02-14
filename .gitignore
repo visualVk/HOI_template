@@ -3,7 +3,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,jetbrains,jetbrains+all,jetbrains+iml,powershell
 
 ### data ###
-data/**
+data/checkpoint/**
 
 ### logs ###
 logs/**

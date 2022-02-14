@@ -43,9 +43,9 @@ class TensorWriter(object):
             t.start()
             t.join()
 
-        self.writer = SummaryWriter(
+        self._writer = SummaryWriter(
             config.LOG_DIR, comment=config.PROJECT_NAME)
 
     @property
     def writer(self) -> SummaryWriter:
-        return self.writer
+        return self._writer

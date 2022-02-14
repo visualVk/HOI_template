@@ -1,12 +1,11 @@
 import torch.distributed as dist
 import torch
 import argparse
-import os
 import torch.nn as nn
 import easydict
 import numpy as np
 import random
-from model.nested_tensor import nested_tensor_from_tensor_list
+from model.ds.nested_tensor import nested_tensor_from_tensor_list
 
 
 class AverageMeter(object):
@@ -24,7 +23,7 @@ class AverageMeter(object):
         self.val = 0
         self.sum = 0
         self._avg = 0
-        self.count = 0
+        self.count = 1
 
     def avg(self):
         return self._avg

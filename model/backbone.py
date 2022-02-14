@@ -9,7 +9,7 @@ import easydict
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
 from typing import Dict, List
-from model.nested_tensor import NestedTensor
+from model.ds.nested_tensor import NestedTensor
 from utils.misc import is_main_process
 
 from model.position_encoding import build_position_encoding
