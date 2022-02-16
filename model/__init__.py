@@ -3,8 +3,11 @@ from typing import Dict, Union
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from .simple_net import build_simplenet
+from .backbone import *
+from .position_encoding import *
+from transforms import *
 
-from config.config import config as Cfg
+from config import config as Cfg
 ModelFactory = dict(
     simple_net=build_simplenet
 )

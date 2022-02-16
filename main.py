@@ -4,13 +4,13 @@ import sys
 
 import torch
 
-from config.config import config, update_config_by_yaml, gen_config
+import utils.misc as utils
+from config.config import config, update_config_by_yaml
+from dataset import build_dataset
+from loss.simple_criterion import SimpleCriterion
 from model import build_model
 from model.simple_train import SimpleTrain
-from dataset import build_dataset
 from utils.dataloader import build_dataloader
-from loss.simple_criterion import SimpleCriterion
-import utils.misc as utils
 
 os.chdir(sys.path[0])
 
