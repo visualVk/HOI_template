@@ -23,11 +23,24 @@ class NestedTensor(object):
     def decompose(self):
         return self.tensors, self.mask
 
+    @property
+    def device(self):
+        return self.mask.device
+
     def __repr__(self):
         return str(self.tensors)
 
 
 def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
+    """
+    convert a batch of images with different shape into unified image
+    Args:
+        tensor_list: the almost case is a batch of images
+
+    Returns:
+        NestedTensor: [tensor, mask], mask is designed for representing original tensor in resized tensor
+
+    """
     # TODO make this more general
     if tensor_list[0].ndim == 3:
         if torchvision._is_tracing():
@@ -39,6 +52,7 @@ def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
         # get max size of image [c, h, w]
         max_size = _max_by_axis([list(img.shape) for img in tensor_list])
         # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
+        # size: [b, max_c, max_h, max_w]
         batch_shape = [len(tensor_list)] + max_size
         b, c, h, w = batch_shape
         dtype = tensor_list[0].dtype
@@ -88,6 +102,8 @@ def _onnx_nested_tensor_from_tensor_list(tensor_list):
     mask = torch.stack(padded_masks)
 
     return NestedTensor(tensor, mask=mask)
+
+
 def _max_by_axis(the_list):
     # type: (List[List[int]]) -> List[int]
     maxes = the_list[0]

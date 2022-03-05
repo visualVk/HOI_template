@@ -7,6 +7,7 @@ import transforms as wtfs
 import numpy as np
 
 from constants import BBOX
+from model.ds import nested_tensor_from_tensor_list
 from utils.box_ops import *
 
 from dataset.base import ImageDataset
@@ -137,26 +138,52 @@ def custom_collate(batch):
     return images, targets
 
 
-def hico_transforms():
+def nested_tensor_collate(batch):
+    images, targets = [], []
+    for image, target in batch:
+        images.append(image)
+        targets.append(target)
+    return images, targets
+
+
+def make_hico_transforms(image_set='train'):
     normalize = wtfs.Compose([
-        wtfs.ToTensor(input_format='dict'),
-        wtfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        wtfs.ToTensor(input_format='comb'),
+        wtfs.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
-    transforms = wtfs.Compose([
-        wtfs.RandomResize([224]),
-        wtfs.ToTensor(input_format='comb')
-        # normalize
-    ])
-    return transforms
+
+    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+
+    if image_set == 'train':
+        return wtfs.Compose([
+            wtfs.RandomHorizontalFlip(),
+            wtfs.RandomSelect(
+                wtfs.RandomResize(scales, max_size=1333),
+                wtfs.Compose([
+                    wtfs.RandomResize([400, 500, 600]),
+                    wtfs.RandomSizeCrop(384, 600),
+                    wtfs.RandomResize(scales, max_size=1333),
+                ])
+            ),
+            normalize,
+        ])
+
+    if image_set == 'val':
+        return wtfs.Compose([
+            wtfs.RandomResize([800], max_size=1333),
+            normalize,
+        ])
+
+    raise ValueError(f'unknown {image_set}')
 
 
 def build_hico_det(root: str, anno_file: str):
-    transforms = hico_transforms()
-    hico_det = HICODet(
-        root,
-        anno_file,
-        transform=wtfs.ToTensor('pil'),
-        target_transform=wtfs.ToTensor(
-            input_format='dict'))
-    # hico_det = HICODet(root, anno_file, transforms=transforms)
+    transforms = make_hico_transforms()
+    # hico_det = HICODet(
+    #     root,
+    #     anno_file,
+    #     transform=wtfs.ToTensor('pil'),
+    #     target_transform=wtfs.ToTensor(
+    #         input_format='dict'))
+    hico_det = HICODet(root, anno_file, transforms=transforms)
     return hico_det

@@ -39,6 +39,7 @@ def dataset_to_dataloader(
 def build_dataloader(
         train_dataset: Dataset,
         test_dataset: Optional[Dataset] = None,
+        collate_fn: Optional[Callable] = None,
         ddp: bool = True,
         num_workers: int = 16,
         batch_size: int = 16,
@@ -55,6 +56,6 @@ def build_dataloader(
                 dataset,
                 batch_size,
                 num_workers,
-                ddp))
+                ddp, collate_fn))
 
     return result

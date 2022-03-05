@@ -26,7 +26,7 @@ class Train(object):
                  accuracy: Optional[nn.Module] = None,
                  criterion: Optional[nn.Module] = None,
                  optimizer: Optional[optim.Optimizer] = None,
-                 lr_scheduler: Optional[nn.Module] = None,
+                 lr_scheduler: Optional[object] = None,
                  sampler: Optional[Sampler] = None):
         self.model = model
         self.is_train = is_train
@@ -114,7 +114,8 @@ class Train(object):
 
     def save_best_model(self):
         best_model_dir = self.model_dir
-        best_model_file = os.path.join(best_model_dir, f"{self.model_name}.pth")
+        best_model_file = os.path.join(
+            best_model_dir, f"{self.model_name}.pth")
         attr_needed_saving = ['optimizer', 'model']
         states_dict = {}
         for attr_name in attr_needed_saving:
@@ -171,10 +172,9 @@ class Train(object):
         return model_dir
 
     def _train_one_epoch_before(self):
-        self._lr_schedular_step()
-
-    def _train_one_epoch_after(self):
         pass
+    def _train_one_epoch_after(self):
+        self._lr_schedular_step()
 
     @abstractmethod
     def _train_one_epoch(

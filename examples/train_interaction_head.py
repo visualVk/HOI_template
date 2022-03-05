@@ -9,11 +9,10 @@ from config.config import config, update_config_by_yaml
 from dataset import build_dataset
 from loss.simple_criterion import SimpleCriterion
 from model import build_model
-from model.simple_train import SimpleTrain
+from model.interaction_train import InteractionTrain
 from utils.dataloader import build_dataloader
 
-os.chdir(sys.path[0])
-
+# os.chdir(sys.path[0])
 
 def get_parse_args():
     parser = argparse.ArgumentParser(
@@ -56,7 +55,7 @@ if __name__ == '__main__':
         misc.init_distributed_mode(args)
 
     misc.fix_random_seed(args, config)
-    model_without_ddp, model = build_model("simple_net", config, args)
+    model_without_ddp, model = build_model("interaction_net", config, args)
     train_image_dir = os.path.join(
         config.DATASET.ROOT,
         config.DATASET.NAME,
@@ -70,7 +69,7 @@ if __name__ == '__main__':
         ddp=config.DDP,
         num_workers=config.WORKERS,
         batch_size=1)
-    hoi_train = SimpleTrain(
+    hoi_train = InteractionTrain(
         model, args, config, device=torch.device(
             args.local_rank))
     criterion = SimpleCriterion()

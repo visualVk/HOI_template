@@ -1,21 +1,25 @@
-from argparse import Namespace
+import argparse
 from typing import Dict, Union
-from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from .simple_net import build_simplenet
-from .backbone import *
-from .position_encoding import *
-from transforms import *
+from model.simple_net import build_simplenet
+from model.backbone import *
+from model.position_encoding import *
+from model.detr import build_detr
+from model.interaction_head import build_interaction_net
 
-from config import config as Cfg
 ModelFactory = dict(
-    simple_net=build_simplenet
+    simple_net=build_simplenet,
+    detr=build_detr,
+    interaction_net=build_interaction_net
 )
 
 
-def build_model(model_name: str, cuda: bool, ddp: bool,
-                local_rank: int) -> Union[nn.Module, nn.DataParallel, DDP]:
+def build_model(model_name: str,
+                config: easydict.EasyDict,
+                args: argparse.Namespace) -> Union[nn.Module,
+                                                   nn.DataParallel,
+                                                   DDP]:
     assert model_name in ModelFactory.keys(),\
         f"{model_name} is not in f{ModelFactory.keys()}"
     create_fn = ModelFactory[model_name]
-    return create_fn(cuda, ddp, local_rank)
+    return create_fn(config, args)

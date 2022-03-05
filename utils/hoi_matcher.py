@@ -1,5 +1,7 @@
-import torch
+import argparse
+
 import easydict
+import torch
 from scipy.optimize import linear_sum_assignment
 from torch import nn
 
@@ -14,7 +16,11 @@ class HungarianMatcher(nn.Module):
     while the others are un-matched (and thus treated as non-objects).
     """
 
-    def __init__(self, cost_class: float = 1, cost_bbox: float = 1, cost_giou: float = 1):
+    def __init__(
+            self,
+            cost_class: float = 1,
+            cost_bbox: float = 1,
+            cost_giou: float = 1):
         """Creates the matcher
 
         Params:
@@ -49,67 +55,52 @@ class HungarianMatcher(nn.Module):
             For each batch element, it holds:
                 len(index_i) = len(index_j) = min(num_queries, num_target_boxes)
         """
-        bs, num_queries = outputs["action_pred_logits"].shape[:2]  # 2, 100
+        bs, num_queries = outputs["pred_logits"].shape[:2]
 
         # We flatten to compute the cost matrices in a batch
-        human_out_prob = outputs["human_pred_logits"].flatten(
-            0, 1).softmax(-1)  # [bs * num_queries, num_classes]
-        human_out_bbox = outputs["human_pred_boxes"].flatten(
-            0, 1)  # [bs * num_queries, 4]
-        object_out_prob = outputs["object_pred_logits"].flatten(
-            0, 1).softmax(-1)  # [bs * num_queries, num_classes]
-        object_out_bbox = outputs["object_pred_boxes"].flatten(
-            0, 1)  # [bs * num_queries, 4]
-        action_out_prob = outputs["action_pred_logits"].flatten(
-            0, 1).softmax(-1)  # [bs * num_queries, num_classes]
+        # [batch_size * num_queries, num_classes]
+        out_prob = outputs["pred_logits"].flatten(0, 1).softmax(-1)
+        out_bbox = outputs["pred_boxes"].flatten(
+            0, 1)  # [batch_size * num_queries, 4]
 
         # Also concat the target labels and boxes
-        human_tgt_ids = torch.cat([v["human_labels"] for v in targets])
-        human_tgt_box = torch.cat([v["human_boxes"] for v in targets])
-        object_tgt_ids = torch.cat([v["object_labels"] for v in targets])
-        object_tgt_box = torch.cat([v["object_boxes"] for v in targets])
-        action_tgt_ids = torch.cat([v["action_labels"] for v in targets])
+        object_ids = [v["labels_o"] for v in targets]
+        human_ids = [v["labels_h"] for v in targets]
+        boxes_o = [v["boxes_o"] for v in targets]
+        boxes_h = [v["boxes_h"] for v in targets]
+        tgt_ids = torch.cat(object_ids + human_ids).to(torch.long)
+        tgt_bbox = torch.cat(boxes_o + boxes_h)
 
         # Compute the classification cost. Contrary to the loss, we don't use the NLL,
         # but approximate it in 1 - proba[target class].
-        # The 1 is a constant that doesn't change the matching, it can be ommitted.
-        human_cost_class = -human_out_prob[:, human_tgt_ids]
-        object_cost_class = -object_out_prob[:, object_tgt_ids]
-        action_cost_class = -action_out_prob[:, action_tgt_ids]
+        # The 1 is a constant that doesn't change the matching, it can be
+        # ommitted.
+        cost_class = -out_prob[:, tgt_ids]
 
         # Compute the L1 cost between boxes
-        human_cost_bbox = torch.cdist(human_out_bbox, human_tgt_box, p=1)
-        object_cost_bbox = torch.cdist(object_out_bbox, object_tgt_box, p=1)
+        cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
         # Compute the giou cost betwen boxes
-        human_cost_giou = - \
-            generalized_box_iou(box_cxcywh_to_xyxy(
-                human_out_bbox), box_cxcywh_to_xyxy(human_tgt_box))
-        object_cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(
-            object_out_bbox), box_cxcywh_to_xyxy(object_tgt_box))
+        cost_giou = - \
+            generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
 
-        beta_1, beta_2 = 1.2, 1
-        alpha_h, alpha_o, alpha_r = 1, 1, 2
-        l_cls_h = alpha_h * self.cost_class * human_cost_class
-        l_cls_o = alpha_o * self.cost_class * object_cost_class
-        l_cls_r = alpha_r * self.cost_class * action_cost_class
-        l_box_h = self.cost_bbox * human_cost_bbox + self.cost_giou * human_cost_giou
-        l_box_o = self.cost_bbox * object_cost_bbox + self.cost_giou * object_cost_giou
-        l_cls_all = (l_cls_h + l_cls_o + l_cls_r) / \
-            (alpha_h + alpha_o + alpha_r)
-        l_box_all = (l_box_h + l_box_o) / 2
-        C = beta_1 * l_cls_all + beta_2 * l_box_all
-
+        # Final cost matrix
+        C = self.cost_bbox * cost_bbox + self.cost_class * \
+            cost_class + self.cost_giou * cost_giou
         C = C.view(bs, num_queries, -1).cpu()
 
-        sizes = [len(v["human_boxes"]) for v in targets]
-        indices = [linear_sum_assignment(c[i])
-                   for i, c in enumerate(C.split(sizes, -1))]
-
-        result = [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(
+        sizes = [len(v["boxes_o"]) + len(v["boxes_h"]) for v in targets]
+        indices = [
+            linear_sum_assignment(
+                c[i]) for i, c in enumerate(
+                C.split(
+                    sizes, -1))]
+        return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(
             j, dtype=torch.int64)) for i, j in indices]
-        return result
 
 
 def build_matcher(config: easydict.EasyDict):
-    return HungarianMatcher(cost_class=config.MATCHER.COST_CLASS, cost_bbox=config.MATCHER.COST_BBOX, cost_giou=config.MATCHER.COST_GIOU)
+    return HungarianMatcher(
+        cost_class=config.MATCHER.COST_CLASS,
+        cost_bbox=config.MATCHER.COST_BBOX,
+        cost_giou=config.MATCHER.COST_GIOU)

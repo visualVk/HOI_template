@@ -1,14 +1,12 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import argparse
 
 import os
-import yaml
 
 import numpy as np
+import yaml
 from easydict import EasyDict as edict
-
 
 config = edict()
 
@@ -20,13 +18,14 @@ config.GPUS = 1
 config.WORKERS = 1
 config.PRINT_FREQ = 20
 config.SEED = 2112112047
-config.DDP = False  # debug must be False
+config.AUX_LOSS = False
+config.DDP = True  # debug must be False
 
 # Model
 config.MODEL = edict()
 config.MODEL.BACKBONE = 'resnet50'
-config.MODEL.NAME = "SMPNet"
-config.MODEL.HIDDEN_DIM = 128
+config.MODEL.NAME = "DETR"
+config.MODEL.HIDDEN_DIM = 256
 config.MODEL.POSITION_EMB = 'sine'
 config.MODEL.NHEAD = 8
 config.MODEL.NUM_QUERIES = 100
@@ -34,7 +33,8 @@ config.MODEL.ENC_LAYERS = 6
 config.MODEL.DEC_LAYERS = 6
 config.MODEL.DROPOUT = 0.1
 config.MODEL.AUX_LOSS = False
-config.MODEL.DIM_FEEDFORWARD = 512
+config.MODEL.PRE_NORM = False
+config.MODEL.DIM_FEEDFORWARD = 2048
 config.MODEL.BEST_MODEL = './data'
 config.MODEL.PRETRAINED = False
 
@@ -47,12 +47,14 @@ config.CUDNN.ENABLED = True
 # DATASET related params
 config.DATASET = edict()
 # config.DATASET.ROOT = '/root/autodl-tmp/data/'
-config.DATASET.ROOT = 'E:/dataset'
+config.DATASET.ROOT = './data'
 config.DATASET.NAME = 'hico'
-config.DATASET.TRAIN_IMAGES = 'images/train2015/'
-config.DATASET.TEST_IMAGES = 'images/test2015/'
+config.DATASET.IMAGES_TRAIN = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'images/train2015/')
+config.DATASET.IMAGES_TEST = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'images/test2015/')
 config.DATASET.ANNO = 'anno/hico_trainval_remake.odgt'
-config.DATASET.INTERACTION_NAME = 'anno/hico_verb_names.json'
+config.DATASET.ANNO_TRAIN = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'anno/hico_train.json')
+config.DATASET.ANNO_TEST = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'anno/hico_test.json')
+config.DATASET.INTERACTION_NAME = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'anno/hico_verb_names.json')
 
 # Matcher
 config.MATCHER = edict()
@@ -92,7 +94,7 @@ config.TRAIN.CHECKPOINT = './data/checkpoint'
 config.TRAIN.SAVE_BEGIN = 4
 config.TRAIN.INTERVAL_SAVE = 1
 
-config.TRAIN.BATCH_SIZE = 1
+config.TRAIN.BATCH_SIZE = 2
 config.TRAIN.SHUFFLE = False
 
 # Test

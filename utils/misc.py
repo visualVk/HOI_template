@@ -5,7 +5,6 @@ import torch.nn as nn
 import easydict
 import numpy as np
 import random
-from model.ds.nested_tensor import nested_tensor_from_tensor_list
 
 
 class AverageMeter(object):
@@ -48,10 +47,10 @@ class AverageMeter(object):
         return fmt
 
 
-def collate_fn(batch):
-    batch = list(zip(*batch))
-    batch[0] = nested_tensor_from_tensor_list(batch[0])
-    return tuple(batch)
+# def collate_fn(batch):
+#     batch = list(zip(*batch))
+#     batch[0] = nested_tensor_from_tensor_list(batch[0])
+#     return tuple(batch)
 
 
 def is_dist_avail_and_initialized():

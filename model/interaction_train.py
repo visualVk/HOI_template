@@ -1,25 +1,27 @@
 import argparse
 from typing import Optional
+from tqdm import tqdm
 
 import torch
 from torch import nn, optim
-from torch.utils.data import Sampler, DataLoader
+from torch.utils.data import DataLoader, Sampler
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
-from utils.model import move_to_device
 
-from config.config import config as Cfg
+from config import config as Cfg
 from utils.misc import AverageMeter
-from .base_model.train import Train
+from utils.model import move_to_device
+from .base_model import Train
 
 
-class SimpleTrain(Train):
+class InteractionTrain(Train):
+
     def __init__(self,
                  model: nn.Module,
                  args: argparse.Namespace,
                  config: Cfg,
                  is_train: bool = True,
                  device: torch.device = torch.device('cpu'),
+                 accuracy: Optional[nn.Module] = None,
                  criterion: Optional[nn.Module] = None,
                  optimizer: Optional[optim.Optimizer] = None,
                  lr_scheduler: Optional[nn.Module] = None,
@@ -30,6 +32,7 @@ class SimpleTrain(Train):
             config,
             is_train,
             device,
+            accuracy,
             criterion,
             optimizer,
             lr_scheduler,
@@ -50,14 +53,14 @@ class SimpleTrain(Train):
                 x = self.model(images)
 
                 self.optimizer.zero_grad()
-                loss = self.criterion(
-                    x, torch.ones_like(
-                        x, dtype=torch.float, device=x.device))
-                loss.backward()
+                # loss = self.criterion(
+                #     x, torch.ones_like(
+                #         x, dtype=torch.float, device=x.device))
+                # loss.backward()
                 self.optimizer.step()
 
                 tbar.set_postfix(
-                    loss=loss.detach().cpu().item(),
+                    # loss=loss.detach().cpu().item(),
                     lr=self.optimizer.param_groups[0]['lr'])
                 tbar.update()
 

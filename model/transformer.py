@@ -9,9 +9,11 @@ Copy-paste from torch.nn.Transformer with modifications:
 """
 import copy
 from typing import Optional, List
+
 import easydict
 import torch
 import torch.nn.functional as F
+from easydict import EasyDict
 from torch import nn, Tensor
 
 
@@ -22,19 +24,21 @@ class Transformer(nn.Module):
                  activation="relu", normalize_before=False,
                  return_intermediate_dec=False):
         super().__init__()
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before)
-        encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
 
+        encoder_layer = TransformerEncoderLayer(
+            d_model, nhead, dim_feedforward, dropout, activation, normalize_before)
+        encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
         self.encoder = TransformerEncoder(
             encoder_layer, num_encoder_layers, encoder_norm)
 
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before)
+        decoder_layer = TransformerDecoderLayer(
+            d_model, nhead, dim_feedforward, dropout, activation, normalize_before)
         decoder_norm = nn.LayerNorm(d_model)
-
-        self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
-                                          return_intermediate=return_intermediate_dec)
+        self.decoder = TransformerDecoder(
+            decoder_layer,
+            num_decoder_layers,
+            decoder_norm,
+            return_intermediate=return_intermediate_dec)
 
         self._reset_parameters()
 
@@ -87,7 +91,12 @@ class TransformerEncoder(nn.Module):
 
 class TransformerDecoder(nn.Module):
 
-    def __init__(self, decoder_layer, num_layers, norm=None, return_intermediate=False):
+    def __init__(
+            self,
+            decoder_layer,
+            num_layers,
+            norm=None,
+            return_intermediate=False):
         super().__init__()
         self.layers = _get_clones(decoder_layer, num_layers)
         self.num_layers = num_layers
@@ -266,10 +275,24 @@ class TransformerDecoderLayer(nn.Module):
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
         if self.normalize_before:
-            return self.forward_pre(tgt, memory, tgt_mask, memory_mask,
-                                    tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
-        return self.forward_post(tgt, memory, tgt_mask, memory_mask,
-                                 tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
+            return self.forward_pre(
+                tgt,
+                memory,
+                tgt_mask,
+                memory_mask,
+                tgt_key_padding_mask,
+                memory_key_padding_mask,
+                pos,
+                query_pos)
+        return self.forward_post(
+            tgt,
+            memory,
+            tgt_mask,
+            memory_mask,
+            tgt_key_padding_mask,
+            memory_key_padding_mask,
+            pos,
+            query_pos)
 
 
 def _get_clones(module, N):
@@ -284,7 +307,7 @@ def build_transformer(config: easydict.EasyDict):
         dim_feedforward=config.MODEL.DIM_FEEDFORWARD,
         num_encoder_layers=config.MODEL.ENC_LAYERS,
         num_decoder_layers=config.MODEL.DEC_LAYERS,
-        normalize_before=True,
+        normalize_before=config.MODEL.PRE_NORM,
         return_intermediate_dec=True,
     )
 

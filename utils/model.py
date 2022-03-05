@@ -9,6 +9,8 @@ from config.config import config as Cfg
 from torch import nn, Tensor
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 
+from model.ds import NestedTensor
+
 
 def to_ddp(
         model: nn.Module,
@@ -57,22 +59,30 @@ def adapt_device(
     ddp = ddp and cuda
     device = torch.device(local_rank if cuda else 'cpu')
 
-    model = model.to(device)
-    model = with_ddp(model, local_rank) if ddp else with_dp(model, cuda)
-    return model
+    model_without_ddp = model.to(device)
+    model = with_ddp(model_without_ddp, local_rank) if ddp else with_dp(model, cuda)
+    return model_without_ddp, model
 
 
 def move_to_device(data: Union[Tensor,
                                List[Tensor],
                                Dict[str,
-                                    Tensor]],
-                   device: torch.device = torch.device('cpu')):
-    if isinstance(data, Tensor):
+                                    Tensor],
+                               NestedTensor],
+                   device: Union[torch.device, str] = torch.device('cpu')):
+    if isinstance(device, str):
+        device = torch.device(device)
+    if isinstance(data, (Tensor, NestedTensor)):
         data = data.to(device)
     elif isinstance(data, list):
-        for d in data:
-            assert isinstance(d, Tensor), "items in data must be Tensor"
-            d = d.to(device)
+        for i, d in enumerate(data):
+            if isinstance(d, Tensor):
+                assert isinstance(d, Tensor), "items in data must be Tensor"
+                data[i] = d.to(device)
+            elif isinstance(d, dict):
+                for k, v in d.items():
+                    assert isinstance(v, Tensor), "value must be Tensor!"
+                    data[i][k] = v.to(device)
     elif isinstance(data, dict):
         for k, v in data.items():
             assert isinstance(v, Tensor), "value must be Tensor!"
@@ -113,7 +123,7 @@ def load_checkpoint(
 
 def load_pretrained_model(model: nn.Module, filename: str):
     pretrained_model_path = os.path.join('./data/', f'{filename}.pth')
-    with open(pretrained_model_path, 'r') as fp:
+    with open(pretrained_model_path, 'rb') as fp:
         pretrained_parameters = torch.load(fp, map_location='cpu')
         _reload_parameters(pretrained_parameters, model, 'model')
 

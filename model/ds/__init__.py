@@ -1,1 +1,1 @@
-from nested_tensor import *
+from .nested_tensor import *

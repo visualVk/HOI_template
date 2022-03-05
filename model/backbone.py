@@ -10,7 +10,7 @@ from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
 from typing import Dict, List
 from model.ds.nested_tensor import NestedTensor
-from utils.misc import is_main_process
+from utils import misc
 
 from model.position_encoding import build_position_encoding
 
@@ -56,7 +56,12 @@ class FrozenBatchNorm2d(torch.nn.Module):
 
 class BackboneBase(nn.Module):
 
-    def __init__(self, backbone: nn.Module, train_backbone: bool, num_channels: int, return_interm_layers: bool):
+    def __init__(
+            self,
+            backbone: nn.Module,
+            train_backbone: bool,
+            num_channels: int,
+            return_interm_layers: bool):
         super().__init__()
         for name, parameter in backbone.named_parameters():
             if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
@@ -77,7 +82,8 @@ class BackboneBase(nn.Module):
         for name, x in xs.items():
             m = tensor_list.mask
             assert m is not None
-            # original mask size: [n,h,w]->[1,n,h,w]->[1,n,x.h,x.w]->[n,x.h,x.w]
+            # original mask size:
+            # [n,h,w]->[1,n,h,w]->[1,n,x.h,x.w]->[n,x.h,x.w]
             mask = F.interpolate(
                 m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
             out[name] = NestedTensor(x, mask)
@@ -93,7 +99,7 @@ class Backbone(BackboneBase):
                  dilation: bool):
         backbone = getattr(torchvision.models, name)(
             replace_stride_with_dilation=[False, False, dilation],
-            pretrained=is_main_process(), norm_layer=FrozenBatchNorm2d)
+            pretrained=misc.is_main_process(), norm_layer=FrozenBatchNorm2d)
         num_channels = 512 if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
@@ -114,7 +120,7 @@ class Joiner(nn.Sequential):
         return out, pos
 
 
-def build_backbone(config:easydict):
+def build_backbone(config: easydict):
     position_embedding = build_position_encoding(config)
     return_interm_layers = False  # args.masks
     backbone = Backbone(config.MODEL.BACKBONE, True,

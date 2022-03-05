@@ -7,12 +7,13 @@ import torch
 from utils import misc
 from config.config import config, update_config_by_yaml
 from dataset import build_dataset
-from loss.simple_criterion import SimpleCriterion
+from dataset.hicodet import nested_tensor_collate
 from model import build_model
-from model.simple_train import SimpleTrain
+from model.detr_train import DetrTrain
 from utils.dataloader import build_dataloader
+from utils.model import adapt_device
 
-os.chdir(sys.path[0])
+# os.chdir(sys.path[0])
 
 
 def get_parse_args():
@@ -45,7 +46,6 @@ def preprocess_config(args: argparse.Namespace):
     if config.DDP:
         args.local_rank = int(os.environ["LOCAL_RANK"])
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         "HOI Transformer training script", parents=[get_parse_args()])
@@ -56,29 +56,41 @@ if __name__ == '__main__':
         misc.init_distributed_mode(args)
 
     misc.fix_random_seed(args, config)
-    model_without_ddp, model = build_model("simple_net", config, args)
-    train_image_dir = os.path.join(
-        config.DATASET.ROOT,
-        config.DATASET.NAME,
-        config.DATASET.TRAIN_IMAGES)
+    train_image_dir = config.DATASET.IMAGES_TRAIN
+
+    model, criterion, postprocessors = build_model(
+        'detr', config, args)
+    model_without_ddp, model = adapt_device(model, config.DDP, config.CUDNN.ENABLED, args.local_rank)
+    param_dicts = [{"params": [p for n,
+                               p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
+                   {"params": [p for n,
+                               p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
+                    "lr": 1e-5,
+                    },
+                   ]
+    optimizer = torch.optim.AdamW(param_dicts, lr=1e-4,
+                                  weight_decay=1e-4)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 200)
+
     dataset = build_dataset(
         'hico_det',
         train_image_dir,
-        'D:\\code\\dpl\\data_an\\hico_train.json')
+        config.DATASET.ANNO_TRAIN)
     train_dataloader, val_dataloader = build_dataloader(
         dataset,
+        collate_fn=nested_tensor_collate,
         ddp=config.DDP,
         num_workers=config.WORKERS,
         batch_size=1)
-    hoi_train = SimpleTrain(
-        model, args, config, device=torch.device(
-            args.local_rank))
-    criterion = SimpleCriterion()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
-    hoi_train.update_optimizer(optimizer)
-    hoi_train.update_train_dataloader(train_dataloader)
-    hoi_train.update_val_dataloader(val_dataloader)
-    hoi_train.update_criterion(criterion)
-    hoi_train.train()
+
+    detr_train = DetrTrain(
+        model_without_ddp, args, config, device=torch.device(
+            args.local_rank), lr_scheduler=lr_scheduler)
+
+    detr_train.update_optimizer(optimizer)
+    detr_train.update_train_dataloader(train_dataloader)
+    detr_train.update_val_dataloader(val_dataloader)
+    detr_train.update_criterion(criterion)
+    detr_train.train()
     # train(args, config)
     # test(args,config)

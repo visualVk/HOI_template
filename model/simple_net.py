@@ -1,5 +1,7 @@
+import argparse
 from argparse import Namespace
 
+import easydict
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -17,7 +19,13 @@ class Model(nn.Module):
         return x
 
 
-def build_simplenet(cuda: bool, ddp: bool, local_rank: int):
+def build_simplenet(
+        config: easydict.EasyDict,
+        args: argparse.Namespace):
+    cuda = config.CUDNN.ENABLED
+    ddp = config.DDP
+    local_rank = args.local_rank
+
     net = Model()
     cuda = cuda and torch.cuda.is_available()
     ddp = ddp and cuda
