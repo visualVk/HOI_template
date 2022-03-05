@@ -224,4 +224,12 @@ class Train(object):
 
 
 def checkpoint_name(epoch: int):
+    """
+
+    Args:
+        epoch:
+
+    Returns:
+
+    """
     return f"checkpoint_{epoch}.pth"
