@@ -102,7 +102,7 @@ config.TRAIN.GAMMA2 = 0.0
 config.TRAIN.CLIP_MAX_NORM = 0.1
 
 config.TRAIN.BEGIN_EPOCH = 0
-config.TRAIN.END_EPOCH = 10
+config.TRAIN.END_EPOCH = 300
 
 config.TRAIN.RESUME = False
 config.TRAIN.CHECKPOINT = './data/checkpoint'

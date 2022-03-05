@@ -4,7 +4,7 @@
 
 ### data ###
 data/checkpoint/**
-data/hico/images/**
+data/hico/images
 data/detr-r50-dc5-f0fb7ef5.pth
 data/detr-r50.pth
 data/SMPNet.pth
