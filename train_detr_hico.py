@@ -83,7 +83,7 @@ if __name__ == '__main__':
         collate_fn=nested_tensor_collate,
         ddp=config.DDP,
         num_workers=config.WORKERS,
-        batch_size=1)
+        batch_size=config.TRAIN.BATCH_SIZE)
 
     detr_train = DetrTrain(
         model_without_ddp, args, config, device=torch.device(
