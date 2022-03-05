@@ -18,13 +18,8 @@ from .ds import nested_tensor_from_tensor_list
 
 
 class DetrTrain(Train):
-    def _train_one_epoch(
-            self,
-            dataloader: DataLoader,
-            meter: AverageMeter,
-            writer: SummaryWriter,
-            epoch: int):
-        with tqdm(total=len(dataloader), ncols=140, desc=f"train {epoch}") as tbar:
+    def one_epoch(self, dataloader, meter, writer, epoch, stage='Train'):
+        with tqdm(total=len(dataloader), ncols=140, desc=f"{stage} {epoch}") as tbar:
             for i, (images, targets) in enumerate(dataloader):
                 samples = move_to_device(images, 'cuda')
                 targets = move_to_device(targets, 'cuda')
@@ -47,24 +42,32 @@ class DetrTrain(Train):
 
                 loss_value = losses_reduced_scaled.item()
 
-                if not math.isfinite(loss_value):
-                    print("Loss is {}, stopping training".format(loss_value))
-                    print(loss_dict_reduced)
-                    sys.exit(1)
+                if stage == 'Train':
+                    if not math.isfinite(loss_value):
+                        print(
+                            "Loss is {}, stopping training".format(loss_value))
+                        print(loss_dict_reduced)
+                        sys.exit(1)
 
-                self.optimizer.zero_grad()
-                losses.backward()
-                if Cfg.TRAIN.CLIP_MAX_NORM > 0:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), Cfg.TRAIN.CLIP_MAX_NORM)
-                self.optimizer.step()
+                    self.optimizer.zero_grad()
+                    losses.backward()
+                    if Cfg.TRAIN.CLIP_MAX_NORM > 0:
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), Cfg.TRAIN.CLIP_MAX_NORM)
+                    self.optimizer.step()
 
                 meter.update(loss_value)
 
-                tbar.set_postfix(
-                    loss=loss_value,
-                    lr=self.optimizer.param_groups[0]['lr'])
+                tbar.set_postfix(loss=loss_value)
                 tbar.update()
+
+    def _train_one_epoch(
+            self,
+            dataloader: DataLoader,
+            meter: AverageMeter,
+            writer: SummaryWriter,
+            epoch: int):
+        self.one_epoch(dataloader, meter, writer, epoch)
 
     def _eval_one_epoch(
             self,
@@ -72,4 +75,4 @@ class DetrTrain(Train):
             meter: AverageMeter,
             writer: SummaryWriter,
             epoch: int):
-        pass
+        self.one_epoch(dataloader, meter, writer, epoch, 'Eval')

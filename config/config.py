@@ -49,12 +49,27 @@ config.DATASET = edict()
 # config.DATASET.ROOT = '/root/autodl-tmp/data/'
 config.DATASET.ROOT = './data'
 config.DATASET.NAME = 'hico'
-config.DATASET.IMAGES_TRAIN = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'images/train2015/')
-config.DATASET.IMAGES_TEST = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'images/test2015/')
+config.DATASET.IMAGES_TRAIN = os.path.join(
+    config.DATASET.ROOT,
+    config.DATASET.NAME,
+    'images/train2015/')
+config.DATASET.IMAGES_TEST = os.path.join(
+    config.DATASET.ROOT,
+    config.DATASET.NAME,
+    'images/test2015/')
 config.DATASET.ANNO = 'anno/hico_trainval_remake.odgt'
-config.DATASET.ANNO_TRAIN = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'anno/hico_train.json')
-config.DATASET.ANNO_TEST = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'anno/hico_test.json')
-config.DATASET.INTERACTION_NAME = os.path.join(config.DATASET.ROOT, config.DATASET.NAME, 'anno/hico_verb_names.json')
+config.DATASET.ANNO_TRAIN = os.path.join(
+    config.DATASET.ROOT,
+    config.DATASET.NAME,
+    'anno/hico_train.json')
+config.DATASET.ANNO_TEST = os.path.join(
+    config.DATASET.ROOT,
+    config.DATASET.NAME,
+    'anno/hico_test.json')
+config.DATASET.INTERACTION_NAME = os.path.join(
+    config.DATASET.ROOT,
+    config.DATASET.NAME,
+    'anno/hico_verb_names.json')
 
 # Matcher
 config.MATCHER = edict()

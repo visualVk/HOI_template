@@ -46,6 +46,7 @@ def preprocess_config(args: argparse.Namespace):
     if config.DDP:
         args.local_rank = int(os.environ["LOCAL_RANK"])
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         "HOI Transformer training script", parents=[get_parse_args()])
@@ -60,7 +61,8 @@ if __name__ == '__main__':
 
     model, criterion, postprocessors = build_model(
         'detr', config, args)
-    model_without_ddp, model = adapt_device(model, config.DDP, config.CUDNN.ENABLED, args.local_rank)
+    model_without_ddp, model = adapt_device(
+        model, config.DDP, config.CUDNN.ENABLED, args.local_rank)
     param_dicts = [{"params": [p for n,
                                p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
                    {"params": [p for n,
