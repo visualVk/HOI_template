@@ -105,7 +105,7 @@ config.TRAIN.LR_DROP = 10
 config.TRAIN.CLIP_MAX_NORM = 0.1
 
 config.TRAIN.BEGIN_EPOCH = 0
-config.TRAIN.END_EPOCH = 20
+config.TRAIN.END_EPOCH = 40
 
 config.TRAIN.RESUME = False
 config.TRAIN.CHECKPOINT = './data/checkpoint'
