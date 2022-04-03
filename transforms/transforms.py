@@ -11,6 +11,7 @@ __all__ = [
     'hflip',
     'crop',
     'resize',
+    'ColorJitter',
     'RandomHorizontalFlip',
     'RandomAdjustImage',
     'RandomSelect',
@@ -46,6 +47,8 @@ def _to_comb_of_tensor(x, dtype=None, device=None):
 def to_tensor(x, input_format='tensor', dtype=None, device=None):
     """Convert input data to tensor based on its format"""
     if input_format == 'tensor':
+        if isinstance(x, PIL.Image.Image):
+            return F.to_tensor(x)
         return torch.as_tensor(x, dtype=dtype, device=device)
     elif input_format == 'pil':
         return torchvision.transforms.functional.to_tensor(x).to(
@@ -85,6 +88,15 @@ def hflip(image, target, image_set='train'):
             torch.as_tensor([-1, 1, -1, 1]) + torch.as_tensor([w, 0, w, 0])
         target["action_boxes"] = boxes
     return flipped_image, target
+
+
+class ColorJitter(object):
+    def __init__(self, brightness=0, contrast=0, saturatio=0, hue=0):
+        self.color_jitter = tfs.ColorJitter(
+            brightness, contrast, saturatio, hue)
+
+    def __call__(self, img, target):
+        return self.color_jitter(img), target
 
 
 class RandomHorizontalFlip(object):
@@ -179,6 +191,11 @@ def resize(image, target, size, max_size=None, image_set='train'):
         scaled_boxes = boxes * \
             torch.as_tensor([ratio_width, ratio_height, ratio_width, ratio_height])
         target["action_boxes"] = scaled_boxes
+    if "keypoint" in target:
+        keypoint = target["keypoint"]
+        scaled_keypoint = keypoint * \
+            torch.as_tensor([ratio_width, ratio_height])
+        target["keypoint"] = scaled_keypoint
     return rescaled_image, target
 
 
@@ -200,7 +217,7 @@ def crop(image, org_target, region, image_set='train'):
         return cropped_image, target
 
     i, j, h, w = region
-    fields = ["labels_h", "labels_o", "labels_v"]
+    fields = ["labels", "object", "actions"]
 
     if "boxes_h" in target:
         boxes = target["boxes_h"]
@@ -294,8 +311,11 @@ class Compose(object):
     def __call__(self, image, target, image_set='train'):
         for t in self.transforms:
             if isinstance(t, ToTensor):
-                image = t((image, target))
-                return image
+                # image = t((image, target))
+                image = t(image)
+                return image, target
+            elif isinstance(t, ColorJitter):
+                image, target = t(image, target)
             else:
                 image, target = t(image, target, image_set)
         return image, target

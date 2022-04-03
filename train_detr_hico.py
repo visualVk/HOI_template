@@ -1,6 +1,5 @@
 import argparse
 import os
-import sys
 
 import torch
 
@@ -9,7 +8,7 @@ from config.config import config, update_config_by_yaml
 from dataset import build_dataset
 from dataset.hicodet import nested_tensor_collate
 from model import build_model
-from model.detr_train import DetrTrain
+from model.detr.detr_train import DetrTrain
 from utils.dataloader import build_dataloader
 from utils.model import adapt_device
 

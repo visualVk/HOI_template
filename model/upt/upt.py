@@ -1,18 +1,20 @@
 from model.ds.nested_tensor import nested_tensor_from_tensor_list
 from utils import box_ops
-from model.detr import build_detr as build_model
+from model.detr.detr import build_detr as build_model
+from model.simple_baseline import get_post_net_without_res
+from loss.simplebaseline_criterion import JointsMSELoss
 import os
 import torch
 import torch.distributed as dist
 
 
 from torch import nn, Tensor
-from typing import Optional, List
+from utils.keypoint import accuracy, generate_target
+from typing import Optional, List, Tuple
 from torchvision.ops.boxes import batched_nms, box_iou
 
-from utils.model import adapt_device
 from utils.ops import binary_focal_loss_with_logits
-from model.interaction_head import InteractionHead
+from model.upt.interaction_head import InteractionHead
 
 import sys
 sys.path.append('detr')
@@ -53,14 +55,18 @@ class UPT(nn.Module):
                  postprocessor: nn.Module,
                  interaction_head: nn.Module,
                  human_idx: int, num_classes: int,
+                 pose_net: Optional[nn.Module] = None,
                  alpha: float = 0.5, gamma: float = 2.0,
                  box_score_thresh: float = 0.2, fg_iou_thresh: float = 0.5,
                  min_instances: int = 3, max_instances: int = 15,
                  ) -> None:
         super().__init__()
         self.detector = detector
+        self.pose_net = pose_net
+
         self.postprocessor = postprocessor
         self.interaction_head = interaction_head
+        # self.criterion = JointsMSELoss()
 
         self.human_idx = human_idx
         self.num_classes = num_classes
@@ -84,9 +90,11 @@ class UPT(nn.Module):
     def associate_with_ground_truth(self, boxes_h, boxes_o, targets):
         n = boxes_h.shape[0]
         labels = torch.zeros(n, self.num_classes, device=boxes_h.device)
+        # gt_bx_h = self.recover_boxes(targets['boxes_h'], targets['size'])
+        # gt_bx_o = self.recover_boxes(targets['boxes_o'], targets['size'])
 
-        gt_bx_h = self.recover_boxes(targets['boxes_h'], targets['size'])
-        gt_bx_o = self.recover_boxes(targets['boxes_o'], targets['size'])
+        gt_bx_h = targets['boxes_h']
+        gt_bx_o = targets['boxes_o']
 
         x, y = torch.nonzero(torch.min(
             box_iou(boxes_h, gt_bx_h),
@@ -115,7 +123,6 @@ class UPT(nn.Module):
             dist.barrier()
             dist.all_reduce(n_p)
             n_p = (n_p / world_size).item()
-
         loss = binary_focal_loss_with_logits(
             torch.log(
                 prior / (1 + torch.exp(-logits) - prior) + 1e-8
@@ -123,7 +130,70 @@ class UPT(nn.Module):
             alpha=self.alpha, gamma=self.gamma
         )
 
-        return loss / n_p
+        return loss / (n_p + 1 if n_p == 0 else n_p)
+
+    # def compute_keypoint_loss(
+    #         self,
+    #         heatmaps,
+    #         targets,
+    #         images_size):
+    #     # list[[17, 64, 64]]
+    #     images_size = images_size.detach().cpu().numpy().tolist()
+    #     # print(targets.shape, heatmaps.shape)
+    #     loss = torch.tensor([0], dtype=torch.float32, device='cuda')
+    #     # n_p = 0
+    #     for i, heatmap in enumerate(heatmaps):
+    #         for j, image_size in enumerate(images_size):
+    #             ratios = tuple(float(64) / float(s_orig)
+    #                            for s_orig in image_size)
+    #             ratio_weight, ratio_height = ratios
+    #             # 17 should be instead of parameter in config
+    #             scaled_targets = targets[j]["keypoints"].view(-1, 17, 3) * torch.as_tensor(
+    #                 [ratio_weight, ratio_height, 1], device=targets[i]["keypoints"].device)
+    #             if scaled_targets.size(0) == 0:
+    #                 continue
+    #             if heatmap.size(0) == 0:
+    #                 heatmap = torch.zeros(
+    #                     (scaled_targets.size(0),
+    #                      scaled_targets.size(1),
+    #                      heatmap.size(2),
+    #                         heatmap.size(3)))
+    #             else:
+    #                 limited_size = min(
+    #                     scaled_targets.shape[0], heatmap.shape[0])
+    #                 heatmap = heatmap[:limited_size]
+    #                 scaled_targets = scaled_targets[:limited_size]
+    #             # print(heatmap.shape, targets[j]["keypoints"].shape)
+    #             if not self.training:
+    #                 scaled_targets = scaled_targets[:, :, :2]
+    #                 # acc, avg_acc, cnt, pred
+    #                 _, avg_acc, _, _ = accuracy(heatmap, scaled_targets)
+    #                 loss += avg_acc
+    #             else:
+    #                 loss += self._compute_keypoint_loss(
+    #                     heatmap, scaled_targets, image_size)
+    #
+    #         loss /= len(heatmaps)
+    #     return loss
+    #
+    # def _compute_keypoint_loss(
+    #         self,
+    #         heatmap,
+    #         target,
+    #         image_size) -> torch.Tensor:
+    #     # target_weight = target[:, :, 1]
+    #     target = target[:, :, :3]
+    #     heatmap_gt_list, target_weight_list = [], []
+    #     for i, joints in enumerate(target):
+    #         heatmap_gt, target_weight = generate_target(joints, image_size)
+    #         heatmap_gt_list.append(heatmap_gt.unsqueeze(dim=0))
+    #         target_weight_list.append(target_weight.unsqueeze(dim=0))
+    #         # print(heatmap_gt.shape, target_weight.shape)
+    #     heatmap_gt = torch.cat(heatmap_gt_list, dim=0).to(heatmap.device)
+    #     target_weight = torch.cat(target_weight_list, dim=0).to(heatmap.device)
+    #     # print(heatmap.shape, heatmap_gt.shape, target_weight.shape)
+    #     loss = self.criterion(heatmap, heatmap_gt, target_weight)
+    #     return loss
 
     def prepare_region_proposals(self, results, hidden_states):
         region_props = []
@@ -171,7 +241,8 @@ class UPT(nn.Module):
                 boxes=bx[keep],
                 scores=sc[keep],
                 labels=lb[keep],
-                hidden_states=hs[keep]
+                hidden_states=hs[keep],
+                # human_hidden_states=hs[keep_h]
             ))
 
         return region_props
@@ -259,16 +330,29 @@ class UPT(nn.Module):
         results = self.postprocessor(results, image_sizes)
         region_props = self.prepare_region_proposals(results, hs[-1])
 
+        # pose_heatmaps = []
+        # for region_prop in region_props:
+        #     human_hidden_states = region_prop["human_hidden_states"]
+        #     pose_heatmap = self.pose_net(human_hidden_states)
+        #     pose_heatmaps.append(pose_heatmap)
+
         logits, prior, bh, bo, objects, attn_maps = self.interaction_head(
             features[-1].tensors, image_sizes, region_props
         )
+
         boxes = [r['boxes'] for r in region_props]
 
+        # for i, _ in enumerate(targets):
+        #     targets[i]['size'] = image_sizes[i]
+
         if self.training:
+            # pose_loss = self.compute_keypoint_loss(
+            #     pose_heatmaps, targets, image_sizes)
             interaction_loss = self.compute_interaction_loss(
                 boxes, bh, bo, logits, prior, targets)
             loss_dict = dict(
-                interaction_loss=interaction_loss
+                interaction_loss=interaction_loss,
+                # pose_loss=pose_loss
             )
             return loss_dict
 
@@ -279,37 +363,30 @@ class UPT(nn.Module):
 
 def build_detector(config, args, class_corr):
     detr, _, postprocessors = build_model(config, args)
-    if os.path.exists(args.pretrained):
-        if dist.get_rank() == 0:
+    if os.path.exists(config.MODEL.PRETRAINED):
+        if not config.DDP or dist.get_rank() == 0:
             print(
-                f"Load weights for the object detector from {args.pretrained}")
+                f"Load weights for the object detector from {config.MODEL.PRETRAINED}")
         detr.load_state_dict(
             torch.load(
-                args.pretrained,
+                config.MODEL.PRETRAINED,
                 map_location='cpu')['model_state_dict'])
-    predictor = torch.nn.Linear(args.repr_dim * 2, args.num_classes)
+    predictor = torch.nn.Linear(
+        config.MODEL.REPR_DIM * 2,
+        config.DATASET.NUM_CLASSES)
     interaction_head = InteractionHead(
-        predictor, args.hidden_dim, args.repr_dim,
+        predictor, config.MODEL.HIDDEN_DIM, config.MODEL.REPR_DIM,
         detr.backbone[0].num_channels,
-        args.num_classes, args.human_idx, class_corr
+        config.DATASET.NUM_CLASSES, config.HUMAN_ID, class_corr
     )
+    # pose_net = get_post_net_without_res(config, args)
     detector = UPT(
         detr, postprocessors['bbox'], interaction_head,
-        human_idx=args.human_idx, num_classes=args.num_classes,
-        alpha=args.alpha, gamma=args.gamma,
-        box_score_thresh=args.box_score_thresh,
-        fg_iou_thresh=args.fg_iou_thresh,
-        min_instances=args.min_instances,
-        max_instances=args.max_instances,
+        human_idx=config.HUMAN_ID, num_classes=config.DATASET.NUM_CLASSES,
+        alpha=config.ALPHA, gamma=config.GAMMA,
+        box_score_thresh=config.BOX_SCORE_THRESH,
+        fg_iou_thresh=config.FG_IOU_THRESH,
+        min_instances=config.MIN_INSTANCES,
+        max_instances=config.MAX_INSTANCES,
     )
-
-    cuda = config.CUDNN.ENABLED
-    ddp = config.DDP
-    local_rank = args.local_rank
-
-    cuda = cuda and torch.cuda.is_available()
-    ddp = ddp and cuda
-
-    model_without_ddp, model = adapt_device(detector, ddp, cuda, local_rank)
-
-    return model_without_ddp, model
+    return detector

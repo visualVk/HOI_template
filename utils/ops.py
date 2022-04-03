@@ -117,3 +117,50 @@ def binary_focal_loss(
         return loss
     else:
         raise ValueError("Unsupported reduction method {}".format(reduction))
+
+
+def binary_focal_loss_with_logits(
+    x: Tensor, y: Tensor,
+    alpha: float = 0.5,
+    gamma: float = 2.0,
+    reduction: str = 'mean',
+    eps: float = 1e-6
+) -> Tensor:
+    """
+    Focal loss by Lin et al.
+    https://arxiv.org/pdf/1708.02002.pdf
+
+    L = - |1-y-alpha| * |y-x|^{gamma} * log(|1-y-x|)
+
+    Parameters:
+    -----------
+    x: Tensor[N, K]
+        Post-normalisation scores
+    y: Tensor[N, K]
+        Binary labels
+    alpha: float
+        Hyper-parameter that balances between postive and negative examples
+    gamma: float
+        Hyper-paramter suppresses well-classified examples
+    reduction: str
+        Reduction methods
+    eps: float
+        A small constant to avoid NaN values from 'PowBackward'
+
+    Returns:
+    --------
+    loss: Tensor
+        Computed loss tensor
+    """
+    loss = (1 - y - alpha).abs() * ((y - torch.sigmoid(x)).abs() + eps) ** gamma * \
+        torch.nn.functional.binary_cross_entropy_with_logits(
+            x, y, reduction='none'
+    )
+    if reduction == 'mean':
+        return loss.mean()
+    elif reduction == 'sum':
+        return loss.sum()
+    elif reduction == 'none':
+        return loss
+    else:
+        raise ValueError("Unsupported reduction method {}".format(reduction))

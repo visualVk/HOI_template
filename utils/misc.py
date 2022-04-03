@@ -78,10 +78,14 @@ def is_main_process():
 
 
 def init_distributed_mode(args: argparse.Namespace):
+    # print(args.local_rank)
     torch.cuda.set_device(args.local_rank)
 
     dist.init_process_group(
-        backend=args.backend, init_method="env://", rank=args.local_rank)
+        backend=args.backend,
+        init_method="env://",
+        world_size=args.world_size,
+        rank=args.local_rank)
 
 
 def reduce_dict(input_dict, average=True):
@@ -124,7 +128,10 @@ def reduce_loss(loss: nn.Module, average=True):
 
 
 def fix_random_seed(args: argparse.Namespace, config: easydict):
-    seed = config.SEED + args.local_rank
+    if args.local_rank is not None:
+        seed = config.SEED + args.local_rank
+    else:
+        seed = config.SEED + get_rank()
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)

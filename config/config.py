@@ -57,7 +57,7 @@ config.DATASET.IMAGES_TEST = os.path.join(
     config.DATASET.ROOT,
     config.DATASET.NAME,
     'images/test2015/')
-config.DATASET.ANNO = 'anno/hico_trainval_remake.odgt'
+# config.DATASET.ANNO = 'anno/hico_trainval_remake.odgt'
 config.DATASET.ANNO_TRAIN = os.path.join(
     config.DATASET.ROOT,
     config.DATASET.NAME,
@@ -196,3 +196,8 @@ def update_dir(model_dir, log_dir, data_dir):
 
     config.MODEL.PRETRAINED = os.path.join(
         config.DATA_DIR, config.MODEL.PRETRAINED)
+
+
+if __name__ == '__main__':
+    import sys
+    gen_config(sys.argv[1])

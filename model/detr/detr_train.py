@@ -13,8 +13,8 @@ from config import config as Cfg
 from utils import misc
 from utils.misc import AverageMeter
 from utils.model import move_to_device
-from .base_model import Train
-from .ds import nested_tensor_from_tensor_list
+from model.base_model import Train
+from model.ds import nested_tensor_from_tensor_list
 
 
 class DetrTrain(Train):

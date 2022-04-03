@@ -10,9 +10,10 @@ from torch import nn, optim, Tensor
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler
 from torch.utils.tensorboard import SummaryWriter
+from easydict import EasyDict
 
 import utils.misc as utils
-from config.config import config as Cfg
+# from config.config import config as Cfg
 from utils.draw_tensorboard import TensorWriter
 from utils.misc import AverageMeter
 
@@ -20,7 +21,7 @@ from utils.misc import AverageMeter
 class Train(object):
     def __init__(self, model: nn.Module,
                  args: argparse.Namespace,
-                 config: Cfg,
+                 config: EasyDict,
                  is_train: bool = True,
                  device: torch.device = torch.device('cpu'),
                  accuracy: Optional[nn.Module] = None,
@@ -173,6 +174,7 @@ class Train(object):
 
     def _train_one_epoch_before(self):
         pass
+
     def _train_one_epoch_after(self):
         self._lr_schedular_step()
 

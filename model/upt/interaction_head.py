@@ -4,8 +4,7 @@ import torch.nn.functional as F
 from torch import nn, Tensor
 from typing import List, Optional, Tuple
 from collections import OrderedDict
-from model.feed_forward_net import FeedForwardNetwork
-from model import transformer
+from model.upt import transformer
 from utils.ops import compute_spatial_encodings
 
 
@@ -89,7 +88,7 @@ class ModifiedEncoderLayer(nn.Module):
         self.norm = nn.LayerNorm(hidden_size)
         self.dropout = nn.Dropout(dropout_prob)
 
-        self.ffn = FeedForwardNetwork(
+        self.ffn = transformer.FeedForwardNetwork(
             hidden_size, hidden_size * 4, dropout_prob)
 
     def reshape(self, x: Tensor) -> Tensor:
@@ -268,8 +267,14 @@ class InteractionHead(nn.Module):
 
         # Map object class index to target class index
         # Object class index to target class index is a one-to-many mapping
-        target_cls_idx = [self.object_class_to_target_class[obj.item()]
-                          for obj in object_class[y]]
+        target_cls_idx = []
+        for obj in object_class[y]:
+            obj_idx = obj.item()
+            # print(len(self.object_class_to_target_class), obj_idx)
+            target_cls_idx_item = self.object_class_to_target_class[obj_idx]
+            target_cls_idx.append(target_cls_idx_item)
+        # target_cls_idx = [self.object_class_to_target_class[obj.item()]
+        #                   for obj in object_class[y]]
         # Duplicate box pair indices for each target class
         pair_idx = [i for i, tar in enumerate(target_cls_idx) for _ in tar]
         # Flatten mapped target indices
@@ -378,7 +383,7 @@ class InteractionHead(nn.Module):
             )
             box_pair_spatial = self.spatial_head(box_pair_spatial)
             # Reshape the spatial features
-            box_pair_spatial_reshaped = box_pair_spatial.reshape(n, n, -1)
+            box_pair_spatial_reshaped = box_pair_spatial.view(n, n, -1)
 
             # Run the cooperative layer
             unary_tokens, unary_attn = self.coop_layer(
