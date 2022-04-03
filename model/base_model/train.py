@@ -80,7 +80,7 @@ class Train(object):
                 # writer.add_scalar(f"train local_rank-{self.args.local_rank} loss", train_meter.avg())
 
             # ===== evaluate =====
-            if evaluate:
+            if evaluate and self.val_dataloader is not None:
                 self.model.eval()
                 eval_meter = AverageMeter('eval meter')
 

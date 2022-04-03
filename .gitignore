@@ -6,10 +6,12 @@
 data/checkpoint/**
 data/mscoco2014
 data/hico/images
+data/hico/**
 data/detr-r50-dc5-f0fb7ef5.pth
 data/detr-r50.pth
 data/SMPNet.pth
 data/DETR.pth
+data/upt.pth
 
 ### logs ###
 logs/**
