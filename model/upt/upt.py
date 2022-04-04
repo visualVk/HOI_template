@@ -66,7 +66,7 @@ class UPT(nn.Module):
 
         self.postprocessor = postprocessor
         self.interaction_head = interaction_head
-        # self.criterion = JointsMSELoss()
+        self.criterion = JointsMSELoss()
 
         self.human_idx = human_idx
         self.num_classes = num_classes
@@ -132,68 +132,68 @@ class UPT(nn.Module):
 
         return loss / (n_p + 1 if n_p == 0 else n_p)
 
-    # def compute_keypoint_loss(
-    #         self,
-    #         heatmaps,
-    #         targets,
-    #         images_size):
-    #     # list[[17, 64, 64]]
-    #     images_size = images_size.detach().cpu().numpy().tolist()
-    #     # print(targets.shape, heatmaps.shape)
-    #     loss = torch.tensor([0], dtype=torch.float32, device='cuda')
-    #     # n_p = 0
-    #     for i, heatmap in enumerate(heatmaps):
-    #         for j, image_size in enumerate(images_size):
-    #             ratios = tuple(float(64) / float(s_orig)
-    #                            for s_orig in image_size)
-    #             ratio_weight, ratio_height = ratios
-    #             # 17 should be instead of parameter in config
-    #             scaled_targets = targets[j]["keypoints"].view(-1, 17, 3) * torch.as_tensor(
-    #                 [ratio_weight, ratio_height, 1], device=targets[i]["keypoints"].device)
-    #             if scaled_targets.size(0) == 0:
-    #                 continue
-    #             if heatmap.size(0) == 0:
-    #                 heatmap = torch.zeros(
-    #                     (scaled_targets.size(0),
-    #                      scaled_targets.size(1),
-    #                      heatmap.size(2),
-    #                         heatmap.size(3)))
-    #             else:
-    #                 limited_size = min(
-    #                     scaled_targets.shape[0], heatmap.shape[0])
-    #                 heatmap = heatmap[:limited_size]
-    #                 scaled_targets = scaled_targets[:limited_size]
-    #             # print(heatmap.shape, targets[j]["keypoints"].shape)
-    #             if not self.training:
-    #                 scaled_targets = scaled_targets[:, :, :2]
-    #                 # acc, avg_acc, cnt, pred
-    #                 _, avg_acc, _, _ = accuracy(heatmap, scaled_targets)
-    #                 loss += avg_acc
-    #             else:
-    #                 loss += self._compute_keypoint_loss(
-    #                     heatmap, scaled_targets, image_size)
-    #
-    #         loss /= len(heatmaps)
-    #     return loss
-    #
-    # def _compute_keypoint_loss(
-    #         self,
-    #         heatmap,
-    #         target,
-    #         image_size) -> torch.Tensor:
-    #     # target_weight = target[:, :, 1]
-    #     target = target[:, :, :3]
-    #     heatmap_gt_list, target_weight_list = [], []
-    #     for i, joints in enumerate(target):
-    #         heatmap_gt, target_weight = generate_target(joints, image_size)
-    #         heatmap_gt_list.append(heatmap_gt.unsqueeze(dim=0))
-    #         target_weight_list.append(target_weight.unsqueeze(dim=0))
-    #         # print(heatmap_gt.shape, target_weight.shape)
-    #     heatmap_gt = torch.cat(heatmap_gt_list, dim=0).to(heatmap.device)
-    #     target_weight = torch.cat(target_weight_list, dim=0).to(heatmap.device)
-    #     # print(heatmap.shape, heatmap_gt.shape, target_weight.shape)
-    #     loss = self.criterion(heatmap, heatmap_gt, target_weight)
-    #     return loss
+    def compute_keypoint_loss(
+            self,
+            heatmaps,
+            targets,
+            images_size):
+        # list[[17, 64, 64]]
+        images_size = images_size.detach().cpu().numpy().tolist()
+        # print(targets.shape, heatmaps.shape)
+        loss = torch.tensor([0], dtype=torch.float32, device='cuda')
+        # n_p = 0
+        for i, heatmap in enumerate(heatmaps):
+            for j, image_size in enumerate(images_size):
+                ratios = tuple(float(64) / float(s_orig)
+                               for s_orig in image_size)
+                ratio_weight, ratio_height = ratios
+                # 17 should be instead of parameter in config
+                scaled_targets = targets[j]["keypoints"].view(-1, 17, 3) * torch.as_tensor(
+                    [ratio_weight, ratio_height, 1], device=targets[i]["keypoints"].device)
+                if scaled_targets.size(0) == 0:
+                    continue
+                if heatmap.size(0) == 0:
+                    heatmap = torch.zeros(
+                        (scaled_targets.size(0),
+                         scaled_targets.size(1),
+                         heatmap.size(2),
+                            heatmap.size(3)))
+                else:
+                    limited_size = min(
+                        scaled_targets.shape[0], heatmap.shape[0])
+                    heatmap = heatmap[:limited_size]
+                    scaled_targets = scaled_targets[:limited_size]
+                # print(heatmap.shape, targets[j]["keypoints"].shape)
+                if not self.training:
+                    scaled_targets = scaled_targets[:, :, :2]
+                    # acc, avg_acc, cnt, pred
+                    _, avg_acc, _, _ = accuracy(heatmap, scaled_targets)
+                    loss += avg_acc
+                else:
+                    loss += self._compute_keypoint_loss(
+                        heatmap, scaled_targets, image_size)
+
+            loss /= len(heatmaps)
+        return loss
+
+    def _compute_keypoint_loss(
+            self,
+            heatmap,
+            target,
+            image_size) -> torch.Tensor:
+        # target_weight = target[:, :, 1]
+        target = target[:, :, :3]
+        heatmap_gt_list, target_weight_list = [], []
+        for i, joints in enumerate(target):
+            heatmap_gt, target_weight = generate_target(joints, image_size)
+            heatmap_gt_list.append(heatmap_gt.unsqueeze(dim=0))
+            target_weight_list.append(target_weight.unsqueeze(dim=0))
+            # print(heatmap_gt.shape, target_weight.shape)
+        heatmap_gt = torch.cat(heatmap_gt_list, dim=0).to(heatmap.device)
+        target_weight = torch.cat(target_weight_list, dim=0).to(heatmap.device)
+        # print(heatmap.shape, heatmap_gt.shape, target_weight.shape)
+        loss = self.criterion(heatmap, heatmap_gt, target_weight)
+        return loss
 
     def prepare_region_proposals(self, results, hidden_states):
         region_props = []
@@ -242,7 +242,7 @@ class UPT(nn.Module):
                 scores=sc[keep],
                 labels=lb[keep],
                 hidden_states=hs[keep],
-                # human_hidden_states=hs[keep_h]
+                human_hidden_states=hs[keep_h]
             ))
 
         return region_props
@@ -330,11 +330,11 @@ class UPT(nn.Module):
         results = self.postprocessor(results, image_sizes)
         region_props = self.prepare_region_proposals(results, hs[-1])
 
-        # pose_heatmaps = []
-        # for region_prop in region_props:
-        #     human_hidden_states = region_prop["human_hidden_states"]
-        #     pose_heatmap = self.pose_net(human_hidden_states)
-        #     pose_heatmaps.append(pose_heatmap)
+        pose_heatmaps = []
+        for region_prop in region_props:
+            human_hidden_states = region_prop["human_hidden_states"]
+            pose_heatmap = self.pose_net(human_hidden_states)
+            pose_heatmaps.append(pose_heatmap)
 
         logits, prior, bh, bo, objects, attn_maps = self.interaction_head(
             features[-1].tensors, image_sizes, region_props
@@ -346,13 +346,13 @@ class UPT(nn.Module):
         #     targets[i]['size'] = image_sizes[i]
 
         if self.training:
-            # pose_loss = self.compute_keypoint_loss(
-            #     pose_heatmaps, targets, image_sizes)
+            pose_loss = self.compute_keypoint_loss(
+                pose_heatmaps, targets, image_sizes)
             interaction_loss = self.compute_interaction_loss(
                 boxes, bh, bo, logits, prior, targets)
             loss_dict = dict(
                 interaction_loss=interaction_loss,
-                # pose_loss=pose_loss
+                pose_loss=pose_loss
             )
             return loss_dict
 
@@ -379,11 +379,11 @@ def build_detector(config, args, class_corr):
         detr.backbone[0].num_channels,
         config.DATASET.NUM_CLASSES, config.HUMAN_ID, class_corr
     )
-    # pose_net = get_post_net_without_res(config, args)
+    pose_net = get_post_net_without_res(config, args)
     detector = UPT(
         detr, postprocessors['bbox'], interaction_head,
         human_idx=config.HUMAN_ID, num_classes=config.DATASET.NUM_CLASSES,
-        alpha=config.ALPHA, gamma=config.GAMMA,
+        pose_net=pose_net, alpha=config.ALPHA, gamma=config.GAMMA,
         box_score_thresh=config.BOX_SCORE_THRESH,
         fg_iou_thresh=config.FG_IOU_THRESH,
         min_instances=config.MIN_INSTANCES,

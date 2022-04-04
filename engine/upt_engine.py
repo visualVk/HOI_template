@@ -65,8 +65,8 @@ class UPT_Trainer(Train):
 
                     self.optimizer.zero_grad(set_to_none=True)
                     tot_loss = sum(l for _, l in loss.items())
-                    with torch.autograd.detect_anomaly():
-                        tot_loss.backward()
+                    # with torch.autograd.detect_anomaly():
+                    tot_loss.backward()
                     if Cfg.TRAIN.CLIP_MAX_NORM > 0:
                         torch.nn.utils.clip_grad_norm_(
                             self.model.parameters(), Cfg.TRAIN.CLIP_MAX_NORM)

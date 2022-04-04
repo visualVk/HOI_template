@@ -209,6 +209,8 @@ class VCOCO(ImageDataset):
         self._image_ids = f['images']
         self._action_to_object = f['action_to_object']
 
+        self._add_heatmap_to_target()
+
         keep = list(range(len(f['images'])))
         num_instances = [0 for _ in range(len(f['classes']))]
         valid_objects = [[] for _ in range(len(f['classes']))]
@@ -227,8 +229,6 @@ class VCOCO(ImageDataset):
         self._present_objects = np.unique(np.asarray(objects)).tolist()
         self._num_instances = num_instances
         self._keep = keep
-
-        # self._add_heatmap_to_target()
 
     def _add_heatmap_to_target(self):
         for i, anno in enumerate(self._anno):
