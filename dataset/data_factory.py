@@ -39,7 +39,7 @@ class DataFactory(Dataset):
                 train='mscoco2014/train2014',
                 val='mscoco2014/train2014',
                 trainval='mscoco2014/train2014',
-                test='mscoco2014/val2014'
+                test='mscoco2014/train2014'
             )
             self.dataset = VCOCO(
                 root=os.path.join(

@@ -10,10 +10,10 @@ from utils.model import move_to_device
 
 from config.config import config as Cfg
 from utils.misc import AverageMeter
-from .base_model.train import Train
+from .base_model.engine import Engine
 
 
-class SimpleTrain(Train):
+class SimpleTrain(Engine):
     def __init__(self,
                  model: nn.Module,
                  args: argparse.Namespace,

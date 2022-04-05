@@ -13,6 +13,7 @@ from utils import misc
 
 # torch.autograd.set_detect_anomaly(True)
 
+
 def get_parse_args():
     parser = argparse.ArgumentParser(
         description="HOI Transformer", add_help=False)
@@ -26,7 +27,7 @@ def get_parse_args():
         '--partitions',
         nargs='+',
         default=[
-            'train',
+            'trainval',
             'test'],
         type=str)
     parser.add_argument(
@@ -52,6 +53,7 @@ def preprocess_config(args: argparse.Namespace):
 
 def main(rank, args, config):
     # whether to use DDP
+    args.local_rank = rank
     if config.DDP and config.CUDNN.ENABLED and torch.cuda.is_available():
         misc.init_distributed_mode(args)
 
@@ -97,17 +99,19 @@ def main(rank, args, config):
     upt = build_detector(config, args, object_to_target)
 
     upt_trainer = build_upt_engine(upt, config, args)
-    upt_trainer.update_train_dataloader(train_loader)
-    upt_trainer.update_val_dataloader(train_loader)
-    upt_trainer.train()
-
-    # a = torch.randn((1, 3, 800, 800)).cuda()
-    # targets = dict(
-    #     boxes_h=torch.ones(
-    #         1, 2, 4, 1), boxes_o=(
-    #         1, 2, 4, 1), size=torch.tensor(
-    #             [800]), labels=torch.ones(1, 4))
-    # b = upt(a, targets)
+    if config.MODEL_TYPE == "train":
+        upt_trainer.update_train_dataloader(train_loader)
+        upt_trainer.update_val_dataloader(train_loader)
+        upt_trainer.train()
+    else:
+        upt_trainer.update_test_dataloader(test_loader)
+        if config.TEST.SAVE:
+            cache_dir = "./data/cache"
+            upt_trainer.cache_vcoco(19, cache_dir)
+        else:
+            # upt = build_detector(config, args, object_to_target)
+            # upt_trainer.update_attr('model', upt)
+            upt_trainer.eval()
 
 
 if __name__ == '__main__':

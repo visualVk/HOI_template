@@ -13,11 +13,11 @@ from config import config as Cfg
 from utils import misc
 from utils.misc import AverageMeter
 from utils.model import move_to_device
-from model.base_model import Train
+from model.base_model import Engine
 from model.ds import nested_tensor_from_tensor_list
 
 
-class DetrTrain(Train):
+class DetrTrain(Engine):
     def one_epoch(self, dataloader, meter, writer, epoch, stage='Train'):
         with tqdm(total=len(dataloader), ncols=140, desc=f"{stage} {epoch}") as tbar:
             for i, (images, targets) in enumerate(dataloader):

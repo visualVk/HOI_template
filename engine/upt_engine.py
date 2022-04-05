@@ -1,21 +1,29 @@
 import argparse
+import copy
+import gc
+import math
+import os
+import pickle
+from utils.vsrl_eval import VCOCOeval
+import utils.vcoco_cached_helper as vhelper
 from typing import Optional
 
 import torch
-import math
 from easydict import EasyDict
-from tqdm import tqdm
 from torch import nn, optim
 from torch.utils.data import DataLoader, Sampler
 from torch.utils.tensorboard import SummaryWriter
-from config.upt_vcoco_config import config as Cfg
+from tqdm import tqdm
 
-from model.base_model import Train
+from config.upt_vcoco_config import config as Cfg
+from model.base_model import Engine
+from utils import relocate
 from utils.misc import AverageMeter
 from utils.model import adapt_device
+from utils.vcoco_cached_helper import CacheTemplate
 
 
-class UPT_Trainer(Train):
+class UPT_Trainer(Engine):
 
     def __init__(self,
                  model: nn.Module,
@@ -91,13 +99,91 @@ class UPT_Trainer(Train):
             epoch: int):
         self.one_epoch(dataloader, meter, writer, epoch)
 
+    def _eval_one_epoch_before(self, epoch: int):
+        checkpoint_filename = os.path.join(
+            self.config.TRAIN.CHECKPOINT,
+            f"checkpoint_{epoch}.pth")
+        net_state_dict = torch.load(checkpoint_filename, map_location="cuda")
+        self.model.load_state_dict(net_state_dict["model"])
+
+        # self.model = adapt_device(
+        #     model,
+        #     self.config.DDP,
+        #     self.config.CUDNN.ENABLED,
+        #     self.args.local_rank)
+
     def _eval_one_epoch(
             self,
             dataloader: DataLoader,
             meter: AverageMeter,
             writer: SummaryWriter,
             epoch: int):
-        pass
+        self.eval_vcoco(epoch)
+
+    def eval_vcoco(self, epoch, writer: SummaryWriter):
+        # TODO: need to test
+        vsrl_annot_file = "data/vcoco/vcoco_test.json"
+        coco_file = "data/mscoco2014/instances_vcoco_all_2014.json"
+        split_file = "data/mscoco2014/splits/vcoco_test.ids"
+
+        # Change this line to match the path of your cached file
+        det_file = f"./data/cache_{epoch}.pkl"
+
+        print(f"Loading cached results from {det_file}.")
+        vcocoeval = VCOCOeval(vsrl_annot_file, coco_file, split_file)
+        mAP_a, mAP_r_1, mAP_r_2 = vcocoeval._do_eval(det_file, ovr_thresh=0.5)
+        writer.add_scalar("mAP of agent", mAP_a, epoch)
+        writer.add_scalar("mAP of role in scenario 1", mAP_r_1, epoch)
+        writer.add_scalar("mAP of role in scenario 2", mAP_r_2, epoch)
+
+    @torch.no_grad()
+    def cache_vcoco(self, epoch, cache_dir='vcoco_cache'):
+        net = self.model
+        net.eval()
+
+        dataloader = self.test_dataloader
+        dataset = dataloader.dataset.dataset
+        all_results = []
+        for i, batch in enumerate(tqdm(dataloader)):
+            inputs = relocate.relocate_to_cuda(batch[0])
+            output = net(inputs)
+
+            # Skip images without detections
+            if output is None or len(output) == 0:
+                continue
+            # Batch size is fixed as 1 for inference
+            assert len(output) == 1, f"Batch size is not 1 but {len(output)}."
+            output = relocate.relocate_to_cpu(output[0], ignore=True)
+            # NOTE Index i is the intra-index amongst images excluding those
+            # without ground truth box pairs
+            image_id = dataset.image_id(i)
+            # Format detections
+            boxes = output['boxes']
+            boxes_h, boxes_o = boxes[output['pairing']].unbind(0)
+            scores = output['scores']
+            actions = output['labels']
+            # Rescale the boxes to original image size
+            ow, oh = dataset.image_size(i)
+            h, w = output['size']
+            scale_fct = torch.as_tensor([
+                ow / w, oh / h, ow / w, oh / h
+            ]).unsqueeze(0)
+            boxes_h *= scale_fct
+            boxes_o *= scale_fct
+
+            for bh, bo, s, a in zip(boxes_h, boxes_o, scores, actions):
+                a_name = dataset.actions[a].split()
+                result = CacheTemplate(
+                    image_id=image_id, person_box=bh.tolist())
+                result[a_name[0] + '_agent'] = s.item()
+                result['_'.join(a_name)] = bo.tolist() + [s.item()]
+                all_results.append(result)
+
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        with open(os.path.join(cache_dir, f'cache_{epoch}.pkl'), 'wb') as f:
+            # Use protocol 2 for compatibility with Python2
+            pickle.dump(all_results, f, 2)
 
 
 def build_upt_engine(upt: nn.Module, config, args):
