@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler
 from torch.utils.tensorboard import SummaryWriter
 from easydict import EasyDict
+from tqdm import tqdm
 
 import utils.misc as utils
 # from config.config import config as Cfg
@@ -111,7 +112,7 @@ class Engine(object):
         end_epoch = self.config.TEST.END_EPOCH
         eval_meter = AverageMeter('eval_meter in evaluate mode')
         writer = TensorWriter().writer
-        for epoch in range(begin_epoch, end_epoch):
+        for epoch in tqdm(range(begin_epoch, end_epoch)):
             with torch.no_grad():
                 self._eval_one_epoch_before(epoch)
                 self.model.eval()

@@ -20,7 +20,7 @@ config.PRINT_FREQ = 20
 config.SEED = 2112112047
 config.AUX_LOSS = False
 config.DDP = True
-config.MODEL_TYPE = "eval"
+config.MODEL_TYPE = "train"
 
 config.HUMAN_ID = 1
 config.ALPHA = 0.5
@@ -122,7 +122,7 @@ config.TEST = edict()
 config.TEST.BATCH_SIZE = 32
 config.TEST.BEGIN_EPOCH = 19
 config.TEST.END_EPOCH = 20
-config.TEST.SAVE = True  # flag of saving vcoco preds pkl
+config.TEST.SAVE = False  # flag of saving vcoco preds pkl
 # Test Model Epoch
 config.TEST.FLIP_TEST = False
 config.TEST.POST_PROCESS = True

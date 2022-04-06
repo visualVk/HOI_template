@@ -67,12 +67,13 @@ class UPT_Trainer(Engine):
                     loss = self.model(inputs, targets)
                     interaction_loss = loss["interaction_loss"].detach().item()
                     # print(f"\n{interaction_loss}")
-                    if not math.isinf(interaction_loss) and not math.isnan(
-                            interaction_loss):
-                        meter.update(interaction_loss)
+                    # if not math.isinf(interaction_loss) and not math.isnan(
+                    #         interaction_loss):
+                    #     meter.update(interaction_loss)
 
                     self.optimizer.zero_grad(set_to_none=True)
                     tot_loss = sum(l for _, l in loss.items())
+                    meter.update(tot_loss.detach().item())
                     # with torch.autograd.detect_anomaly():
                     tot_loss.backward()
                     if Cfg.TRAIN.CLIP_MAX_NORM > 0:
@@ -99,11 +100,11 @@ class UPT_Trainer(Engine):
             epoch: int):
         self.one_epoch(dataloader, meter, writer, epoch)
 
-    def _eval_one_epoch_before(self, epoch: int):
+    def _eval_one_epoch_before(self, epoch: int, device="cuda"):
         checkpoint_filename = os.path.join(
             self.config.TRAIN.CHECKPOINT,
             f"checkpoint_{epoch}.pth")
-        net_state_dict = torch.load(checkpoint_filename, map_location="cuda")
+        net_state_dict = torch.load(checkpoint_filename, map_location=device)
         self.model.load_state_dict(net_state_dict["model"])
 
     def _eval_one_epoch(
@@ -112,16 +113,16 @@ class UPT_Trainer(Engine):
             meter: AverageMeter,
             writer: SummaryWriter,
             epoch: int):
-        self.eval_vcoco(epoch)
+        self.eval_vcoco(epoch, writer)
 
     def eval_vcoco(self, epoch, writer: SummaryWriter):
         # TODO: need to test
-        vsrl_annot_file = "data/vcoco/vcoco_test.json"
+        vsrl_annot_file = "data/mscoco2014/vcoco_test.json"
         coco_file = "data/mscoco2014/instances_vcoco_all_2014.json"
         split_file = "data/mscoco2014/splits/vcoco_test.ids"
 
         # Change this line to match the path of your cached file
-        det_file = f"./data/cache_{epoch}.pkl"
+        det_file = f"./data/cache/cache_{epoch}.pkl"
 
         print(f"Loading cached results from {det_file}.")
         vcocoeval = VCOCOeval(vsrl_annot_file, coco_file, split_file)
@@ -135,7 +136,7 @@ class UPT_Trainer(Engine):
         begin_epoch = self.config.TEST.BEGIN_EPOCH
         end_epoch = self.config.TEST.END_EPOCH
         for epoch in range(begin_epoch, end_epoch):
-            self._eval_one_epoch_before(epoch)
+            self._eval_one_epoch_before(epoch, device="cpu")
             self._cache_vcoco(epoch, cache_dir)
 
     @torch.no_grad()

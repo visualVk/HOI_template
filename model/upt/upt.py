@@ -2,7 +2,7 @@ from model.ds.nested_tensor import nested_tensor_from_tensor_list
 from utils import box_ops
 from model.detr.detr import build_detr as build_model
 from model.simple_baseline import get_post_net_without_res
-from model.lpn import LPN
+from model.lpn import build_lpn_model
 from loss.simplebaseline_criterion import JointsMSELoss
 import os
 import torch
@@ -56,6 +56,7 @@ class UPT(nn.Module):
                  postprocessor: nn.Module,
                  interaction_head: nn.Module,
                  human_idx: int, num_classes: int,
+                 interaction_head_of_pose: Optional[nn.Module] = None,
                  pose_net: Optional[nn.Module] = None,
                  lpn: Optional[nn.Module] = None,
                  alpha: float = 0.5, gamma: float = 2.0,
@@ -69,6 +70,7 @@ class UPT(nn.Module):
 
         self.postprocessor = postprocessor
         self.interaction_head = interaction_head
+        self.interaction_head_of_pose = interaction_head_of_pose
         self.criterion = JointsMSELoss()
 
         self.human_idx = human_idx
@@ -245,7 +247,8 @@ class UPT(nn.Module):
                 scores=sc[keep],
                 labels=lb[keep],
                 hidden_states=hs[keep],
-                human_hidden_states=hs[keep_h]
+                human_hidden_states=hs[keep_h],
+                object_hidden_states=hs[keep_o]
             ))
 
         return region_props
@@ -334,24 +337,31 @@ class UPT(nn.Module):
         region_props = self.prepare_region_proposals(results, hs[-1])
 
         pose_heatmaps = []
+        new_hs = []
         for region_prop in region_props:
             human_hidden_states = region_prop["human_hidden_states"]
+            object_hidden_states = region_prop["object_hidden_states"]
             pose_heatmap = self.pose_net(human_hidden_states)
             pose_heatmaps.append(pose_heatmap)
+            if self.lpn is not None:
+                hm_o_hs_feat = self.lpn(pose_heatmap, object_hidden_states)
+                new_hs.append(hm_o_hs_feat)
             # print(pose_heatmap.shape, region_prop["human_hidden_states"].shape, region_prop["hidden_states"].shape)
 
         # TODO: hs: [c, hidden_size], pose_heatmap:[num_in_img, num_joints, 64, 64]([n, 17, 64, 64])
         # object_heatmap: hs - human_hidden_states using LPN
-        pose_heatmaps_concated = torch.cat(
-            pose_heatmaps, dim=0).to(
-            pose_heatmaps[0].device)
-        h_o_pose_hs_feat = self.lpn(pose_heatmaps_concated)
-
         logits, prior, bh, bo, objects, attn_maps = self.interaction_head(
             features[-1].tensors, image_sizes, region_props
         )
 
         boxes = [r['boxes'] for r in region_props]
+        if self.lpn is not None:
+            for i, region_prop in enumerate(region_props):
+                region_props[i]["hidden_states"] = new_hs[i]
+
+            logits_p, prior_p, _, _, _, attn_maps = self.interaction_head(
+                features[-1].tensors, image_sizes, region_props
+            )
 
         # for i, _ in enumerate(targets):
         #     targets[i]['size'] = image_sizes[i]
@@ -361,10 +371,13 @@ class UPT(nn.Module):
                 pose_heatmaps, targets, image_sizes)
             interaction_loss = self.compute_interaction_loss(
                 boxes, bh, bo, logits, prior, targets)
+            if self.lpn is not None:
+                interaction_part_loss = self.compute_interaction_loss(
+                    boxes, bh, bo, logits_p, prior_p, targets)
             loss_dict = dict(
                 interaction_loss=interaction_loss,
-                pose_loss=pose_loss
-            )
+                interaction_part_loss=interaction_part_loss if self.lpn is not None else 0,
+                pose_loss=pose_loss)
             return loss_dict
 
         detections = self.postprocessing(
@@ -391,10 +404,20 @@ def build_detector(config, args, class_corr):
         config.DATASET.NUM_CLASSES, config.HUMAN_ID, class_corr
     )
     pose_net = get_post_net_without_res(config, args)
+    # TODO add switch of lpn
+    use_lpn = False
+    if use_lpn:
+        lpn = build_lpn_model(
+            config.MODEL.HIDDEN_DIM,
+            config.MODEL.NUM_QUERIES,
+            config.MODEL.NUM_JOINTS,
+            config.MODEL.EXTRA.HEATMAP_SIZE)
+    else:
+        lpn = None
     detector = UPT(
         detr, postprocessors['bbox'], interaction_head,
         human_idx=config.HUMAN_ID, num_classes=config.DATASET.NUM_CLASSES,
-        pose_net=pose_net, alpha=config.ALPHA, gamma=config.GAMMA,
+        pose_net=pose_net, lpn=lpn, alpha=config.ALPHA, gamma=config.GAMMA,
         box_score_thresh=config.BOX_SCORE_THRESH,
         fg_iou_thresh=config.FG_IOU_THRESH,
         min_instances=config.MIN_INSTANCES,

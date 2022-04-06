@@ -69,7 +69,7 @@ class VCOCOeval(object):
 
     def _get_vcocodb(self):
         vcocodb = copy.deepcopy(self.COCO.loadImgs(self.image_ids.tolist()))
-        for entry in vcocodb:
+        for i, entry in enumerate(vcocodb):
             self._prep_vcocodb_entry(entry)
             self._add_gt_annotations(entry)
 
