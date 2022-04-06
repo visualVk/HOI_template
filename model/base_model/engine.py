@@ -45,7 +45,7 @@ class Engine(object):
         self.config = config
         self.args = args
 
-    def train(self, evaluate=True):
+    def train(self, evaluate=False):
         begin_epoch = self.config.TRAIN.BEGIN_EPOCH
         end_epoch = self.config.TRAIN.END_EPOCH
         writer = TensorWriter().writer
@@ -77,6 +77,7 @@ class Engine(object):
             train_meter.synchronize_between_process()
 
             if is_main:
+                print(f"saving checkpoint of {epoch}")
                 self.save_checkpoint_file(epoch)
                 writer.add_scalar("train global loss",
                                   train_meter.global_avg(), epoch)
@@ -98,6 +99,7 @@ class Engine(object):
 
                     if is_main:
                         if accuracy > eval_meter.global_avg():
+                            print(f"saving the best model in {epoch}")
                             self.save_best_model()
 
                         writer.add_scalar("eval global loss",

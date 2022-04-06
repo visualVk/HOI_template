@@ -122,7 +122,7 @@ config.TEST = edict()
 config.TEST.BATCH_SIZE = 32
 config.TEST.BEGIN_EPOCH = 19
 config.TEST.END_EPOCH = 20
-config.TEST.SAVE = True # flag of saving vcoco preds pkl
+config.TEST.SAVE = True  # flag of saving vcoco preds pkl
 # Test Model Epoch
 config.TEST.FLIP_TEST = False
 config.TEST.POST_PROCESS = True

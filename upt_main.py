@@ -107,7 +107,7 @@ def main(rank, args, config):
         upt_trainer.update_test_dataloader(test_loader)
         if config.TEST.SAVE:
             cache_dir = "./data/cache"
-            upt_trainer.cache_vcoco(19, cache_dir)
+            upt_trainer.cache_vcoco(cache_dir)
         else:
             # upt = build_detector(config, args, object_to_target)
             # upt_trainer.update_attr('model', upt)

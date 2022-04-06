@@ -106,12 +106,6 @@ class UPT_Trainer(Engine):
         net_state_dict = torch.load(checkpoint_filename, map_location="cuda")
         self.model.load_state_dict(net_state_dict["model"])
 
-        # self.model = adapt_device(
-        #     model,
-        #     self.config.DDP,
-        #     self.config.CUDNN.ENABLED,
-        #     self.args.local_rank)
-
     def _eval_one_epoch(
             self,
             dataloader: DataLoader,
@@ -137,7 +131,15 @@ class UPT_Trainer(Engine):
         writer.add_scalar("mAP of role in scenario 2", mAP_r_2, epoch)
 
     @torch.no_grad()
-    def cache_vcoco(self, epoch, cache_dir='vcoco_cache'):
+    def cache_vcoco(self, cache_dir="vcoco_cache"):
+        begin_epoch = self.config.TEST.BEGIN_EPOCH
+        end_epoch = self.config.TEST.END_EPOCH
+        for epoch in range(begin_epoch, end_epoch):
+            self._eval_one_epoch_before(epoch)
+            self._cache_vcoco(epoch, cache_dir)
+
+    @torch.no_grad()
+    def _cache_vcoco(self, epoch, cache_dir='vcoco_cache'):
         net = self.model
         net.eval()
 

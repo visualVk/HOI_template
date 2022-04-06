@@ -2,6 +2,7 @@ from model.ds.nested_tensor import nested_tensor_from_tensor_list
 from utils import box_ops
 from model.detr.detr import build_detr as build_model
 from model.simple_baseline import get_post_net_without_res
+from model.lpn import LPN
 from loss.simplebaseline_criterion import JointsMSELoss
 import os
 import torch
@@ -56,6 +57,7 @@ class UPT(nn.Module):
                  interaction_head: nn.Module,
                  human_idx: int, num_classes: int,
                  pose_net: Optional[nn.Module] = None,
+                 lpn: Optional[nn.Module] = None,
                  alpha: float = 0.5, gamma: float = 2.0,
                  box_score_thresh: float = 0.2, fg_iou_thresh: float = 0.5,
                  min_instances: int = 3, max_instances: int = 15,
@@ -63,6 +65,7 @@ class UPT(nn.Module):
         super().__init__()
         self.detector = detector
         self.pose_net = pose_net
+        self.lpn = lpn
 
         self.postprocessor = postprocessor
         self.interaction_head = interaction_head
@@ -196,10 +199,10 @@ class UPT(nn.Module):
         return loss
 
     def prepare_region_proposals(self, results, hidden_states):
+        # hidden_states: [c, hidden_size]->[100, 256]
         region_props = []
         for res, hs in zip(results, hidden_states):
             sc, lb, bx = res.values()
-
             keep = batched_nms(bx, sc, lb, 0.5)
             sc = sc[keep].view(-1)
             lb = lb[keep].view(-1)
@@ -335,6 +338,14 @@ class UPT(nn.Module):
             human_hidden_states = region_prop["human_hidden_states"]
             pose_heatmap = self.pose_net(human_hidden_states)
             pose_heatmaps.append(pose_heatmap)
+            # print(pose_heatmap.shape, region_prop["human_hidden_states"].shape, region_prop["hidden_states"].shape)
+
+        # TODO: hs: [c, hidden_size], pose_heatmap:[num_in_img, num_joints, 64, 64]([n, 17, 64, 64])
+        # object_heatmap: hs - human_hidden_states using LPN
+        pose_heatmaps_concated = torch.cat(
+            pose_heatmaps, dim=0).to(
+            pose_heatmaps[0].device)
+        h_o_pose_hs_feat = self.lpn(pose_heatmaps_concated)
 
         logits, prior, bh, bo, objects, attn_maps = self.interaction_head(
             features[-1].tensors, image_sizes, region_props
