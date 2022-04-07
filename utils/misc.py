@@ -78,7 +78,6 @@ def is_main_process():
 
 
 def init_distributed_mode(args: argparse.Namespace):
-    # print(args.local_rank)
     torch.cuda.set_device(args.local_rank)
 
     dist.init_process_group(

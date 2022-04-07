@@ -267,10 +267,10 @@ class InteractionHead(nn.Module):
 
         # Map object class index to target class index
         # Object class index to target class index is a one-to-many mapping
+        # TODO: map problem
         target_cls_idx = []
         for obj in object_class[y]:
             obj_idx = obj.item()
-            # print(len(self.object_class_to_target_class), obj_idx)
             target_cls_idx_item = self.object_class_to_target_class[obj_idx]
             target_cls_idx.append(target_cls_idx_item)
         # target_cls_idx = [self.object_class_to_target_class[obj.item()]

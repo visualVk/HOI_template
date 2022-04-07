@@ -11,7 +11,7 @@ import torch.distributed as dist
 
 from torch import nn, Tensor
 from utils.keypoint import accuracy, generate_target
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union, Dict
 from torchvision.ops.boxes import batched_nms, box_iou
 
 from utils.ops import binary_focal_loss_with_logits
@@ -56,6 +56,7 @@ class UPT(nn.Module):
                  postprocessor: nn.Module,
                  interaction_head: nn.Module,
                  human_idx: int, num_classes: int,
+                 idx_map: Optional[torch.Tensor] = None,
                  interaction_head_of_pose: Optional[nn.Module] = None,
                  pose_net: Optional[nn.Module] = None,
                  lpn: Optional[nn.Module] = None,
@@ -75,6 +76,7 @@ class UPT(nn.Module):
 
         self.human_idx = human_idx
         self.num_classes = num_classes
+        self.idx_map = idx_map
 
         self.alpha = alpha
         self.gamma = gamma
@@ -334,6 +336,8 @@ class UPT(nn.Module):
         results = {
             'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         results = self.postprocessor(results, image_sizes)
+        if self.idx_map is not None:
+            remove_negative(results, self.idx_map)
         region_props = self.prepare_region_proposals(results, hs[-1])
 
         if self.pose_net is not None:
@@ -395,7 +399,7 @@ class UPT(nn.Module):
         return detections
 
 
-def build_detector(config, args, class_corr):
+def build_detector(config, args, class_corr, idx_map=None):
     detr, _, postprocessors = build_model(config, args)
     if os.path.exists(config.MODEL.PRETRAINED):
         if not config.DDP or dist.get_rank() == 0:
@@ -428,12 +432,38 @@ def build_detector(config, args, class_corr):
     else:
         lpn = None
     detector = UPT(
-        detr, postprocessors['bbox'], interaction_head,
-        human_idx=config.HUMAN_ID, num_classes=config.DATASET.NUM_CLASSES,
-        pose_net=pose_net, lpn=lpn, alpha=config.ALPHA, gamma=config.GAMMA,
+        detr,
+        postprocessors['bbox'],
+        interaction_head,
+        human_idx=config.HUMAN_ID,
+        num_classes=config.DATASET.NUM_CLASSES,
+        idx_map=idx_map,
+        pose_net=pose_net,
+        lpn=lpn,
+        alpha=config.ALPHA,
+        gamma=config.GAMMA,
         box_score_thresh=config.BOX_SCORE_THRESH,
         fg_iou_thresh=config.FG_IOU_THRESH,
         min_instances=config.MIN_INSTANCES,
         max_instances=config.MAX_INSTANCES,
     )
     return detector
+
+
+def remove_negative(results: List[Dict[str, Tensor]], idx_map: Dict[int, int]):
+    for i, result in enumerate(results):
+        scores = result["scores"]
+        boxes = result["boxes"]
+        labels = result["labels"]
+        selected_index = torch.zeros_like(labels, dtype=torch.bool)
+        for j, label in enumerate(labels):
+            if label.item() in idx_map.keys():
+                selected_index[j] = True
+                labels[j] = idx_map[label.item()]
+        scores = scores[selected_index]
+        boxes = boxes[selected_index]
+        labels = labels[selected_index]
+        results[i]["scores"] = scores
+        results[i]["boxes"] = boxes
+        results[i]["labels"] = labels
+    # return results

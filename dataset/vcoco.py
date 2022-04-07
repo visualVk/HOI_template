@@ -51,6 +51,15 @@ idx_to_keypoint = {0: 'nose',
                    15: 'left_ankle',
                    16: 'right_ankle'}
 
+KEEP = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18,
+    19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
+    37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52,
+    53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 70,
+    72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87,
+    88, 89, 90
+]
+
 
 class VCOCO(ImageDataset):
     """
@@ -149,6 +158,11 @@ class VCOCO(ImageDataset):
         return reprstr
 
     @property
+    def coco_idx_map(self) -> Dict[int, int]:
+        COCOIDX = {k: i for i, k in enumerate(KEEP)}
+        return COCOIDX
+
+    @property
     def annotations(self) -> List[dict]:
         return self._anno
 
@@ -180,7 +194,7 @@ class VCOCO(ImageDataset):
     @property
     def object_to_action(self) -> Dict[int, list]:
         """Return the list of actions for each object"""
-        object_to_action = {obj: [] for obj in list(range(1, 92))}
+        object_to_action = {obj: [] for obj in list(range(0, 81))}
         for act, obj in enumerate(self._action_to_object):
             for o in obj:
                 if act not in object_to_action[o]:

@@ -12,14 +12,10 @@ import torch
 from easydict import EasyDict
 from torch import nn, optim
 from torch.utils.data import DataLoader, Sampler
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from config.upt_vcoco_config import config as Cfg
-from model.base_model import Engine
+from engine.engine import Engine
 from utils import relocate, misc
-from utils.misc import AverageMeter
-from utils.model import adapt_device
 from utils.vcoco_cached_helper import CacheTemplate
 
 
@@ -48,96 +44,25 @@ class UPT_Trainer(Engine):
             lr_scheduler,
             sampler)
 
-    def one_epoch(
-            self,
-            dataloader,
-            meter,
-            writer: SummaryWriter,
-            epoch,
-            stage='Train'):
-        with tqdm(total=len(dataloader), ncols=140, desc=f"{stage} {epoch}") as tbar:
-            for i, (inputs, targets) in enumerate(dataloader):
-                if stage == "Train":
-                    loss = self.model(inputs, targets)
-                    # interaction_loss = loss["interaction_loss"].detach().item()
-                    # print(f"\n{interaction_loss}")
-                    # if not math.isinf(interaction_loss) and not math.isnan(
-                    #         interaction_loss):
-                    #     meter.update(interaction_loss)
+    def _iterate_each_train_epoch(self, inputs, targets):
+        loss = self.model(inputs, targets)
 
-                    self.optimizer.zero_grad(set_to_none=True)
-                    # print(loss.items())
-                    tot_loss = sum(l for _, l in loss.items())
-                    meter.update(tot_loss.detach().item())
-                    # with torch.autograd.detect_anomaly():
-                    tot_loss.backward()
-                    if Cfg.TRAIN.CLIP_MAX_NORM > 0:
-                        torch.nn.utils.clip_grad_norm_(
-                            self.model.parameters(), Cfg.TRAIN.CLIP_MAX_NORM)
-                    self.optimizer.step()
+        self.optimizer.zero_grad(set_to_none=True)
 
-                    tbar.set_postfix(
-                        loss=tot_loss.detach().item(),
-                        # pose_loss=loss["pose_loss"].detach().cpu().item()
-                    )
-                    tbar.update()
-                else:
-                    detections = self.model(inputs)
+        tot_loss = sum(l for _, l in loss.items())
+        self.loss = tot_loss
+        self.train_meter.update(tot_loss.detach().item())
 
-                    tbar.set_postfix(detections=detections)
-                    tbar.update()
+        tot_loss.backward()
 
-    def _train_one_epoch(
-            self,
-            dataloader: DataLoader,
-            meter: AverageMeter,
-            writer: SummaryWriter,
-            epoch: int):
-        self.one_epoch(dataloader, meter, writer, epoch)
+        if self.config.TRAIN.CLIP_MAX_NORM > 0:
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.config.TRAIN.CLIP_MAX_NORM)
 
-    # def _eval_one_epoch_before(self, epoch: int, device="cuda"):
-    #     checkpoint_filename = os.path.join(
-    #         self.config.TRAIN.CHECKPOINT,
-    #         f"checkpoint_{epoch}.pth")
-    #     net_state_dict = torch.load(checkpoint_filename, map_location=device)
-    #     self.model.load_state_dict(net_state_dict["model"])
-
-    def _eval_one_epoch(
-            self,
-            dataloader: DataLoader,
-            meter: AverageMeter,
-            writer: SummaryWriter,
-            epoch: int):
-        # self.eval_vcoco(epoch, writer)
-        self._cache_vcoco(epoch, "data/cache")
-
-    def eval_vcoco(self, epoch, writer: SummaryWriter):
-        # TODO: need to test, not support ddp
-        vsrl_annot_file = "data/mscoco2014/vcoco_test.json"
-        coco_file = "data/mscoco2014/instances_vcoco_all_2014.json"
-        split_file = "data/mscoco2014/splits/vcoco_test.ids"
-
-        # Change this line to match the path of your cached file
-        det_file = f"./data/cache/cache_{epoch}.pkl"
-
-        print(f"Loading cached results from {det_file}.")
-        vcocoeval = VCOCOeval(vsrl_annot_file, coco_file, split_file)
-        mAP_a, mAP_r_1, mAP_r_2 = vcocoeval._do_eval(det_file, ovr_thresh=0.5)
-        # if misc.is_main_process():
-        writer.add_scalar("mAP of agent", mAP_a, epoch)
-        writer.add_scalar("mAP of role in scenario 1", mAP_r_1, epoch)
-        writer.add_scalar("mAP of role in scenario 2", mAP_r_2, epoch)
-
-    # @torch.no_grad()
-    # def cache_vcoco(self, cache_dir="vcoco_cache"):
-    #     begin_epoch = self.config.TEST.BEGIN_EPOCH
-    #     end_epoch = self.config.TEST.END_EPOCH
-    #     for epoch in range(begin_epoch, end_epoch):
-    #         # self._eval_one_epoch_before(epoch, device="cpu")
-    #         self._cache_vcoco(epoch, cache_dir)
+        self.optimizer.step()
 
     @torch.no_grad()
-    def _cache_vcoco(self, epoch, cache_dir='vcoco_cache'):
+    def cache_vcoco(self, epoch, cache_dir='vcoco_cache', cache_name=''):
         net = self.model
         net.eval()
 
@@ -182,7 +107,7 @@ class UPT_Trainer(Engine):
 
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir)
-        with open(os.path.join(cache_dir, f'cache_pose_{epoch}.pkl'), 'wb') as f:
+        with open(os.path.join(cache_dir, f'cache_{cache_name}{epoch}.pkl'), 'wb') as f:
             # Use protocol 2 for compatibility with Python2
             pickle.dump(all_results, f, 2)
             print(f"saved vcoco cached of epoch {epoch}")

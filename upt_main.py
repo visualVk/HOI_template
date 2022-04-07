@@ -4,6 +4,8 @@ import os
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.multiprocessing as mp
+from tqdm import tqdm
+
 from dataset.data_factory import DataFactory
 from model.upt.upt import build_detector
 from dataset.data_factory import custom_collate
@@ -94,15 +96,24 @@ def main(rank, args, config):
     #     object_to_target = train_loader.dataset.dataset.object_to_verb
     #     args.num_classes = 117
     # elif args.dataset == 'vcoco':
-    object_to_target = list(
-        train_loader.dataset.dataset.object_to_action.values())
-    upt = build_detector(config, args, object_to_target)
+    object_to_target = list(train_loader.dataset.dataset.object_to_action.values())
+    idx_map = train_loader.dataset.dataset.coco_idx_map
+    upt = build_detector(config, args, object_to_target, idx_map)
 
     upt_trainer = build_upt_engine(upt, config, args)
-    if config.MODEL_TYPE == "train":
+    if config.TRAIN:
         upt_trainer.update_train_dataloader(train_loader)
         upt_trainer.update_val_dataloader(test_loader)
-        upt_trainer.train(evaluate=True)
+        upt_trainer.train(evaluate=False)
+
+    if config.CACHE:
+        begin_epoch = config.TEST.BEGIN_EPOCH
+        end_epoch = config.TEST.END_EPOCH
+        for epoch in tqdm(range(begin_epoch, end_epoch)):
+            upt_trainer.cache_vcoco(epoch, "data/cache")
+            upt = build_detector(config, args, object_to_target)
+            upt_trainer.reload_eval_model_in_epoch(upt)
+
     # else:
     #     upt_trainer.update_test_dataloader(test_loader)
     #     upt_trainer.eval()

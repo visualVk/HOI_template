@@ -54,19 +54,6 @@ def preprocess_config(args: argparse.Namespace):
 
 
 def main(rank, args, config):
-    # whether to use DDP
-    args.local_rank = rank
-    if config.DDP and config.CUDNN.ENABLED and torch.cuda.is_available():
-        misc.init_distributed_mode(args)
-
-    misc.fix_random_seed(args, config)
-
-    data_root = config.DATASET.ROOT
-    testset = DataFactory(
-        name='vcoco',
-        partition=args.partitions[1],
-        data_root=data_root)
-
     begin_epoch = config.TEST.BEGIN_EPOCH
     end_epoch = config.TEST.END_EPOCH
     writer = TensorWriter().writer

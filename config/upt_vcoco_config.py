@@ -20,9 +20,10 @@ config.PRINT_FREQ = 20
 config.SEED = 2112112047
 config.AUX_LOSS = False
 config.DDP = True
-config.MODEL_TYPE = "train"
+config.TRAIN = True
 config.POSE_NET = False
 config.LPN = False
+config.CACHE = False
 
 config.HUMAN_ID = 1
 config.ALPHA = 0.5
@@ -108,7 +109,7 @@ config.TRAIN.LR_DROP = 10
 config.TRAIN.CLIP_MAX_NORM = 0.1
 
 config.TRAIN.BEGIN_EPOCH = 0
-config.TRAIN.END_EPOCH = 40
+config.TRAIN.END_EPOCH = 1
 
 config.TRAIN.RESUME = False
 config.TRAIN.CHECKPOINT = './data/checkpoint'
@@ -124,7 +125,6 @@ config.TEST = edict()
 config.TEST.BATCH_SIZE = 32
 config.TEST.BEGIN_EPOCH = 19
 config.TEST.END_EPOCH = 20
-config.TEST.SAVE = True  # flag of saving vcoco preds pkl
 # Test Model Epoch
 config.TEST.FLIP_TEST = False
 config.TEST.POST_PROCESS = True
