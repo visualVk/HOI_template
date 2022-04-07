@@ -336,20 +336,19 @@ class UPT(nn.Module):
         results = self.postprocessor(results, image_sizes)
         region_props = self.prepare_region_proposals(results, hs[-1])
 
-        pose_heatmaps = []
-        new_hs = []
-        for region_prop in region_props:
-            human_hidden_states = region_prop["human_hidden_states"]
-            object_hidden_states = region_prop["object_hidden_states"]
-            pose_heatmap = self.pose_net(human_hidden_states)
-            pose_heatmaps.append(pose_heatmap)
-            if self.lpn is not None:
-                hm_o_hs_feat = self.lpn(pose_heatmap, object_hidden_states)
-                new_hs.append(hm_o_hs_feat)
-            # print(pose_heatmap.shape, region_prop["human_hidden_states"].shape, region_prop["hidden_states"].shape)
+        if self.pose_net is not None:
+            pose_heatmaps = []
+            new_hs = []
+            for region_prop in region_props:
+                human_hidden_states = region_prop["human_hidden_states"]
+                object_hidden_states = region_prop["object_hidden_states"]
+                pose_heatmap = self.pose_net(human_hidden_states)
+                pose_heatmaps.append(pose_heatmap)
+                if self.lpn is not None:
+                    hm_o_hs_feat = self.lpn(pose_heatmap, object_hidden_states)
+                    new_hs.append(hm_o_hs_feat)
+                # print(pose_heatmap.shape, region_prop["human_hidden_states"].shape, region_prop["hidden_states"].shape)
 
-        # TODO: hs: [c, hidden_size], pose_heatmap:[num_in_img, num_joints, 64, 64]([n, 17, 64, 64])
-        # object_heatmap: hs - human_hidden_states using LPN
         logits, prior, bh, bo, objects, attn_maps = self.interaction_head(
             features[-1].tensors, image_sizes, region_props
         )
@@ -368,7 +367,7 @@ class UPT(nn.Module):
 
         if self.training:
             pose_loss = self.compute_keypoint_loss(
-                pose_heatmaps, targets, image_sizes)
+                pose_heatmaps, targets, image_sizes) if self.pose_net is not None else torch.tensor([0])
             interaction_loss = self.compute_interaction_loss(
                 boxes, bh, bo, logits, prior, targets)
             if self.lpn is not None:
@@ -376,7 +375,7 @@ class UPT(nn.Module):
                     boxes, bh, bo, logits_p, prior_p, targets)
             loss_dict = dict(
                 interaction_loss=interaction_loss,
-                interaction_part_loss=interaction_part_loss if self.lpn is not None else 0,
+                interaction_part_loss=interaction_part_loss if self.lpn is not None else torch.tensor([0]),
                 pose_loss=pose_loss)
             return loss_dict
 
@@ -403,9 +402,12 @@ def build_detector(config, args, class_corr):
         detr.backbone[0].num_channels,
         config.DATASET.NUM_CLASSES, config.HUMAN_ID, class_corr
     )
-    pose_net = get_post_net_without_res(config, args)
-    # TODO add switch of lpn
-    use_lpn = False
+    use_pose = config.POSE_NET
+    if use_pose:
+        pose_net = get_post_net_without_res(config, args)
+    else:
+        pose_net = None
+    use_lpn = config.LPN
     if use_lpn:
         lpn = build_lpn_model(
             config.MODEL.HIDDEN_DIM,

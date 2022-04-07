@@ -72,6 +72,7 @@ class UPT_Trainer(Engine):
                     #     meter.update(interaction_loss)
 
                     self.optimizer.zero_grad(set_to_none=True)
+                    print(loss.items())
                     tot_loss = sum(l for _, l in loss.items())
                     meter.update(tot_loss.detach().item())
                     # with torch.autograd.detect_anomaly():
@@ -82,7 +83,7 @@ class UPT_Trainer(Engine):
                     self.optimizer.step()
 
                     tbar.set_postfix(
-                        loss=interaction_loss,
+                        loss=tot_loss,
                         # pose_loss=loss["pose_loss"].detach().cpu().item()
                     )
                     tbar.update()
@@ -149,7 +150,8 @@ class UPT_Trainer(Engine):
         dataloader = self.val_dataloader
         dataset = dataloader.dataset.dataset
         all_results = []
-        for i, batch in enumerate(tqdm(dataloader, desc="cache vcoco", ncols=120)):
+        for i, batch in enumerate(
+                tqdm(dataloader, desc="cache vcoco", ncols=120)):
             inputs = relocate.relocate_to_cuda(batch[0])
             output = net(inputs)
 
@@ -186,7 +188,7 @@ class UPT_Trainer(Engine):
 
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir)
-        with open(os.path.join(cache_dir, f'cache_{epoch}.pkl'), 'wb') as f:
+        with open(os.path.join(cache_dir, f'cache_pose_{epoch}.pkl'), 'wb') as f:
             # Use protocol 2 for compatibility with Python2
             pickle.dump(all_results, f, 2)
             print(f"saved vcoco cached of epoch {epoch}")

@@ -21,6 +21,8 @@ config.SEED = 2112112047
 config.AUX_LOSS = False
 config.DDP = True
 config.MODEL_TYPE = "train"
+config.POSE_NET = False
+config.LPN = False
 
 config.HUMAN_ID = 1
 config.ALPHA = 0.5
