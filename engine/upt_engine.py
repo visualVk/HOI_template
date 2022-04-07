@@ -83,10 +83,11 @@ class UPT_Trainer(Engine):
                     self.optimizer.step()
 
                     tbar.set_postfix(
-                        loss=tot_loss,
+                        loss=tot_loss.detach().item(),
                         # pose_loss=loss["pose_loss"].detach().cpu().item()
                     )
-                    tbar.update()
+                    if misc.is_main_process():
+                        tbar.update()
                 else:
                     detections = self.model(inputs)
 
