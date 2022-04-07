@@ -47,12 +47,6 @@ class UPT_Trainer(Engine):
             optimizer,
             lr_scheduler,
             sampler)
-        _, model = adapt_device(
-            model,
-            config.DDP,
-            config.CUDNN.ENABLED,
-            args.local_rank)
-        self.model = model
 
     def one_epoch(
             self,
@@ -86,8 +80,7 @@ class UPT_Trainer(Engine):
                         loss=tot_loss.detach().item(),
                         # pose_loss=loss["pose_loss"].detach().cpu().item()
                     )
-                    if misc.is_main_process():
-                        tbar.update()
+                    tbar.update()
                 else:
                     detections = self.model(inputs)
 

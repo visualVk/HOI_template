@@ -19,6 +19,7 @@ import utils.misc as utils
 # from config.config import config as Cfg
 from utils.draw_tensorboard import TensorWriter
 from utils.misc import AverageMeter
+from utils.model import adapt_device
 
 
 class Engine(object):
@@ -32,6 +33,12 @@ class Engine(object):
                  optimizer: Optional[optim.Optimizer] = None,
                  lr_scheduler: Optional[object] = None,
                  sampler: Optional[Sampler] = None):
+        _, model = adapt_device(
+            model,
+            config.DDP,
+            config.CUDNN.ENABLED,
+            args.local_rank)
+
         self.model = model
         self.is_train = is_train
         self.criterion = criterion
@@ -131,19 +138,20 @@ class Engine(object):
     def get_attr_state_dict(self, attr_name: str):
         value = self.__getattribute__(attr_name)
         assert isinstance(value, (nn.Module, optim.Optimizer))
-        value = value.state_dict()
+        if attr_name == "model":
+            value = value.module.state_dict()
         return value
 
-    def adapt_device(self, data: Union[Tensor, List[Tensor]]):
-        warnings.warn(
-            "adapt_device is deprecated and will be instead by utils.models.move_to_device")
-        if self.use_cuda:
-            if isinstance(data, Tensor):
-                data = data.to(self.device)
-            elif isinstance(data, list):
-                for d in data:
-                    d = d.to(self.device)
-        return data
+    # def adapt_device(self, data: Union[Tensor, List[Tensor]]):
+    #     warnings.warn(
+    #         "adapt_device is deprecated and will be instead by utils.models.move_to_device")
+    #     if self.use_cuda:
+    #         if isinstance(data, Tensor):
+    #             data = data.to(self.device)
+    #         elif isinstance(data, list):
+    #             for d in data:
+    #                 d = d.to(self.device)
+    #     return data
 
     @property
     def use_cuda(self):

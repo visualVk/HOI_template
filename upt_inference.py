@@ -91,8 +91,9 @@ def main(rank, args, config):
 if __name__ == '__main__':
     parser = get_parse_args()
     args = parser.parse_args()
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "8888"
+    # os.environ["MASTER_ADDR"] = "localhost"
+    # os.environ["MASTER_PORT"] = "8888"
     # os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"
     print(args)
-    mp.spawn(main, nprocs=args.world_size, args=(args, cfg,))
+    main(0, args, cfg)
+    # mp.spawn(main, nprocs=args.world_size, args=(args, cfg,))
