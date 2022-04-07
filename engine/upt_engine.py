@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from config.upt_vcoco_config import config as Cfg
 from model.base_model import Engine
-from utils import relocate
+from utils import relocate, misc
 from utils.misc import AverageMeter
 from utils.model import adapt_device
 from utils.vcoco_cached_helper import CacheTemplate
@@ -100,12 +100,12 @@ class UPT_Trainer(Engine):
             epoch: int):
         self.one_epoch(dataloader, meter, writer, epoch)
 
-    def _eval_one_epoch_before(self, epoch: int, device="cuda"):
-        checkpoint_filename = os.path.join(
-            self.config.TRAIN.CHECKPOINT,
-            f"checkpoint_{epoch}.pth")
-        net_state_dict = torch.load(checkpoint_filename, map_location=device)
-        self.model.load_state_dict(net_state_dict["model"])
+    # def _eval_one_epoch_before(self, epoch: int, device="cuda"):
+    #     checkpoint_filename = os.path.join(
+    #         self.config.TRAIN.CHECKPOINT,
+    #         f"checkpoint_{epoch}.pth")
+    #     net_state_dict = torch.load(checkpoint_filename, map_location=device)
+    #     self.model.load_state_dict(net_state_dict["model"])
 
     def _eval_one_epoch(
             self,
@@ -113,10 +113,11 @@ class UPT_Trainer(Engine):
             meter: AverageMeter,
             writer: SummaryWriter,
             epoch: int):
-        self.eval_vcoco(epoch, writer)
+        # self.eval_vcoco(epoch, writer)
+        self._cache_vcoco(epoch, "data/cache")
 
     def eval_vcoco(self, epoch, writer: SummaryWriter):
-        # TODO: need to test
+        # TODO: need to test, not support ddp
         vsrl_annot_file = "data/mscoco2014/vcoco_test.json"
         coco_file = "data/mscoco2014/instances_vcoco_all_2014.json"
         split_file = "data/mscoco2014/splits/vcoco_test.ids"
@@ -127,27 +128,28 @@ class UPT_Trainer(Engine):
         print(f"Loading cached results from {det_file}.")
         vcocoeval = VCOCOeval(vsrl_annot_file, coco_file, split_file)
         mAP_a, mAP_r_1, mAP_r_2 = vcocoeval._do_eval(det_file, ovr_thresh=0.5)
+        # if misc.is_main_process():
         writer.add_scalar("mAP of agent", mAP_a, epoch)
         writer.add_scalar("mAP of role in scenario 1", mAP_r_1, epoch)
         writer.add_scalar("mAP of role in scenario 2", mAP_r_2, epoch)
 
-    @torch.no_grad()
-    def cache_vcoco(self, cache_dir="vcoco_cache"):
-        begin_epoch = self.config.TEST.BEGIN_EPOCH
-        end_epoch = self.config.TEST.END_EPOCH
-        for epoch in range(begin_epoch, end_epoch):
-            self._eval_one_epoch_before(epoch, device="cpu")
-            self._cache_vcoco(epoch, cache_dir)
+    # @torch.no_grad()
+    # def cache_vcoco(self, cache_dir="vcoco_cache"):
+    #     begin_epoch = self.config.TEST.BEGIN_EPOCH
+    #     end_epoch = self.config.TEST.END_EPOCH
+    #     for epoch in range(begin_epoch, end_epoch):
+    #         # self._eval_one_epoch_before(epoch, device="cpu")
+    #         self._cache_vcoco(epoch, cache_dir)
 
     @torch.no_grad()
     def _cache_vcoco(self, epoch, cache_dir='vcoco_cache'):
         net = self.model
         net.eval()
 
-        dataloader = self.test_dataloader
+        dataloader = self.val_dataloader
         dataset = dataloader.dataset.dataset
         all_results = []
-        for i, batch in enumerate(tqdm(dataloader)):
+        for i, batch in enumerate(tqdm(dataloader, desc="cache vcoco", ncols=120)):
             inputs = relocate.relocate_to_cuda(batch[0])
             output = net(inputs)
 
@@ -187,6 +189,7 @@ class UPT_Trainer(Engine):
         with open(os.path.join(cache_dir, f'cache_{epoch}.pkl'), 'wb') as f:
             # Use protocol 2 for compatibility with Python2
             pickle.dump(all_results, f, 2)
+            print(f"saved vcoco cached of epoch {epoch}")
 
 
 def build_upt_engine(upt: nn.Module, config, args):

@@ -24,6 +24,8 @@ import copy
 import pickle
 import pdb
 
+from tqdm import tqdm
+
 
 class VCOCOeval(object):
 
@@ -331,7 +333,11 @@ class VCOCOeval(object):
         # compute ap for each action
         role_ap = np.zeros((self.num_actions, 2), dtype=np.float32)
         role_ap[:] = np.nan
-        for aid in range(self.num_actions):
+        for aid in tqdm(
+                range(
+                    self.num_actions),
+                desc=f"role_ap_{eval_type}",
+                ncols=120):
             if len(self.roles[aid]) < 2:
                 continue
             for rid in range(len(self.roles[aid]) - 1):
@@ -434,7 +440,7 @@ class VCOCOeval(object):
 
         # compute ap for each action
         agent_ap = np.zeros((self.num_actions), dtype=np.float32)
-        for aid in range(self.num_actions):
+        for aid in tqdm(range(self.num_actions), desc="agent_ap", ncols=120):
 
             a_fp = np.array(fp[aid], dtype=np.float32)
             a_tp = np.array(tp[aid], dtype=np.float32)

@@ -94,7 +94,7 @@ class VCOCO(ImageDataset):
 
     def __len__(self) -> int:
         """Return the number of images"""
-        return len(self._keep)
+        return len(self._keep[:2])
 
     def __getitem__(self, i: int) -> Tuple[Any, Any]:
         """

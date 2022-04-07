@@ -2,16 +2,18 @@ import argparse
 import os
 
 import torch
-from torch.utils.data import DataLoader, DistributedSampler
 import torch.multiprocessing as mp
-from dataset.data_factory import DataFactory
-from model.upt.upt import build_detector
-from dataset.data_factory import custom_collate
-from config.upt_vcoco_config import config, update_config_by_yaml
-from engine.upt_engine import build_upt_engine
-from utils import misc
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-# torch.autograd.set_detect_anomaly(True)
+from config.upt_vcoco_config import config as cfg
+from dataset.data_factory import DataFactory
+from dataset.data_factory import custom_collate
+from model.upt.upt import build_detector
+from utils import misc
+from utils.draw_tensorboard import TensorWriter
+from utils.model import adapt_device
+from utils.vsrl_eval import VCOCOeval
 
 
 def get_parse_args():
@@ -47,7 +49,7 @@ def get_parse_args():
 
 def preprocess_config(args: argparse.Namespace):
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-    if config.DDP:
+    if cfg.DDP:
         args.local_rank = int(os.environ["LOCAL_RANK"])
 
 
@@ -59,59 +61,36 @@ def main(rank, args, config):
 
     misc.fix_random_seed(args, config)
 
-    # preprocess_config(args)
-
-    # data_root = os.path.join(config.DATASET.ROOT, config.DATASET.NAME)
     data_root = config.DATASET.ROOT
-
-    trainset = DataFactory(
-        name='vcoco',
-        partition=args.partitions[0],
-        data_root=data_root)
     testset = DataFactory(
         name='vcoco',
         partition=args.partitions[1],
         data_root=data_root)
 
-    train_loader = DataLoader(
-        dataset=trainset,
-        collate_fn=custom_collate, batch_size=config.TRAIN.BATCH_SIZE,
-        num_workers=config.WORKERS, pin_memory=True, drop_last=True,
-        sampler=DistributedSampler(
-            trainset,
-            num_replicas=args.world_size,
-            rank=0)
-    )
-    test_loader = DataLoader(
-        dataset=testset,
-        collate_fn=custom_collate, batch_size=1,
-        num_workers=config.WORKERS, pin_memory=True, drop_last=False,
-        sampler=torch.utils.data.SequentialSampler(testset)
-    )
+    begin_epoch = config.TEST.BEGIN_EPOCH
+    end_epoch = config.TEST.END_EPOCH
+    writer = TensorWriter().writer
 
-    # args.human_idx = 0
-    # if args.dataset == 'hicodet':
-    #     object_to_target = train_loader.dataset.dataset.object_to_verb
-    #     args.num_classes = 117
-    # elif args.dataset == 'vcoco':
-    object_to_target = list(
-        train_loader.dataset.dataset.object_to_action.values())
-    upt = build_detector(config, args, object_to_target)
+    vsrl_annot_file = "data/mscoco2014/vcoco_test.json"
+    coco_file = "data/mscoco2014/instances_vcoco_all_2014.json"
+    split_file = "data/mscoco2014/splits/vcoco_test.ids"
+    vcocoeval = VCOCOeval(vsrl_annot_file, coco_file, split_file)
+    for epoch in range(begin_epoch, end_epoch):
+        print(f"evaluate epoch {epoch}:")
+        # Change this line to match the path of your cached file
+        det_file = f"./data/cache/cache_{epoch}.pkl"
 
-    upt_trainer = build_upt_engine(upt, config, args)
-    if config.MODEL_TYPE == "train":
-        upt_trainer.update_train_dataloader(train_loader)
-        upt_trainer.update_val_dataloader(test_loader)
-        upt_trainer.train(evaluate=True)
-    # else:
-    #     upt_trainer.update_test_dataloader(test_loader)
-    #     upt_trainer.eval()
+        print(f"Loading cached results from {det_file}.")
+        mAP_a, mAP_r_1, mAP_r_2 = vcocoeval._do_eval(det_file, ovr_thresh=0.5)
+        # if misc.is_main_process():
+        writer.add_scalar("mAP of agent", mAP_a, epoch)
+        writer.add_scalar("mAP of role in scenario 1", mAP_r_1, epoch)
+        writer.add_scalar("mAP of role in scenario 2", mAP_r_2, epoch)
 
 
 if __name__ == '__main__':
     parser = get_parse_args()
     args = parser.parse_args()
-    cfg = config
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "8888"
     # os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"

@@ -40,7 +40,6 @@ class Engine(object):
         self.sampler = sampler
         self.val_dataloader = None
         self.train_dataloader = None
-        self.test_dataloader = None
         self.device = device
         self.accuracy = criterion if accuracy is None else accuracy
         self.config = config
@@ -89,10 +88,8 @@ class Engine(object):
                 self.model.eval()
                 eval_meter = AverageMeter('eval meter')
 
-                if ddp:
-                    self.val_dataloader.sampler.set_epoch(epoch)
                 with torch.no_grad():
-                    self._eval_one_epoch_before()
+                    self._eval_one_epoch_before(epoch)
                     self._eval_one_epoch(
                         self.val_dataloader, eval_meter, writer, epoch)
                     self._eval_one_epoch_after()
@@ -105,20 +102,6 @@ class Engine(object):
 
                         writer.add_scalar("eval global loss",
                                           eval_meter.global_avg(), epoch)
-
-    def eval(self):
-        assert self.test_dataloader is not None, "in evaluate mode, test_dataloader shouldn't be None"
-        begin_epoch = self.config.TEST.BEGIN_EPOCH
-        end_epoch = self.config.TEST.END_EPOCH
-        eval_meter = AverageMeter('eval_meter in evaluate mode')
-        writer = TensorWriter().writer
-        for epoch in tqdm(range(begin_epoch, end_epoch)):
-            with torch.no_grad():
-                self._eval_one_epoch_before(epoch)
-                self.model.eval()
-                self._eval_one_epoch(
-                    self.test_dataloader, eval_meter, writer, epoch)
-                self._eval_one_epoch_after()
 
     def save_checkpoint_file(self, epoch: int):
         checkpoint_dir = self.checkpoint_dir
@@ -232,9 +215,6 @@ class Engine(object):
 
     def update_val_dataloader(self, val_dataloader: DataLoader):
         self.update_attr('val_dataloader', val_dataloader)
-
-    def update_test_dataloader(self, test_dataloader: DataLoader):
-        self.update_attr('test_dataloader', test_dataloader)
 
     def update_optimizer(self, optimizer: optim.Optimizer):
         self.update_attr('optimizer', optimizer)
