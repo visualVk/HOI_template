@@ -366,16 +366,27 @@ class UPT(nn.Module):
         #     targets[i]['size'] = image_sizes[i]
 
         if self.training:
-            pose_loss = self.compute_keypoint_loss(
-                pose_heatmaps, targets, image_sizes) if self.pose_net is not None else torch.tensor([0])
             interaction_loss = self.compute_interaction_loss(
                 boxes, bh, bo, logits, prior, targets)
-            if self.lpn is not None:
-                interaction_part_loss = self.compute_interaction_loss(
-                    boxes, bh, bo, logits_p, prior_p, targets)
+            pose_loss = self.compute_keypoint_loss(
+                pose_heatmaps,
+                targets,
+                image_sizes) if self.pose_net is not None else torch.tensor(
+                [0],
+                device=interaction_loss.device)
+
+            interaction_part_loss = self.compute_interaction_loss(
+                boxes,
+                bh,
+                bo,
+                logits_p,
+                prior_p,
+                targets) if self.lpn is not None else torch.tensor(
+                [0],
+                device=interaction_loss.device)
             loss_dict = dict(
                 interaction_loss=interaction_loss,
-                interaction_part_loss=interaction_part_loss if self.lpn is not None else torch.tensor([0]),
+                interaction_part_loss=interaction_part_loss,
                 pose_loss=pose_loss)
             return loss_dict
 

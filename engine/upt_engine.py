@@ -65,14 +65,14 @@ class UPT_Trainer(Engine):
             for i, (inputs, targets) in enumerate(dataloader):
                 if stage == "Train":
                     loss = self.model(inputs, targets)
-                    interaction_loss = loss["interaction_loss"].detach().item()
+                    # interaction_loss = loss["interaction_loss"].detach().item()
                     # print(f"\n{interaction_loss}")
                     # if not math.isinf(interaction_loss) and not math.isnan(
                     #         interaction_loss):
                     #     meter.update(interaction_loss)
 
                     self.optimizer.zero_grad(set_to_none=True)
-                    print(loss.items())
+                    # print(loss.items())
                     tot_loss = sum(l for _, l in loss.items())
                     meter.update(tot_loss.detach().item())
                     # with torch.autograd.detect_anomaly():
