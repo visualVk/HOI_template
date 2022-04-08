@@ -122,7 +122,7 @@ config.TRAIN.SHUFFLE = False
 config.TEST = edict()
 
 # size of images for each device
-config.TEST.BATCH_SIZE = 32
+config.TEST.BATCH_SIZE = 1
 config.TEST.BEGIN_EPOCH = 19
 config.TEST.END_EPOCH = 20
 # Test Model Epoch
