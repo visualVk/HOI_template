@@ -1,9 +1,7 @@
 import torch
-
-from model.lpn import LPN
-
+from model.simple_baseline import get_post_net_without_res
+from config.upt_vcoco_config import config
 if __name__ == '__main__':
-    lpn = LPN(6, 3, 100, 17, 64)
-    joints_feat = torch.randn(3, 17, 64, 64)
-    output = lpn(joints_feat)
-    print(output.shape)
+    cfg = config
+    simple_baseline = get_post_net_without_res(config, None)
+    simple_baseline.load_state_dict(torch.load("data/pose_resnet_50.pth"), strict=False)

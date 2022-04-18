@@ -4,8 +4,8 @@ import os
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.multiprocessing as mp
-from tqdm import tqdm
 
+from utils.logger import setup_logger, log_every_n
 from dataset.data_factory import DataFactory
 from model.upt.upt import build_detector
 from dataset.data_factory import custom_collate
@@ -14,6 +14,7 @@ from engine.upt_engine import build_upt_engine
 from utils import misc
 
 # torch.autograd.set_detect_anomaly(True)
+from utils.draw_tensorboard import TensorWriter
 
 
 def get_parse_args():
@@ -25,6 +26,18 @@ def get_parse_args():
     parser.add_argument("--world_size", default=1, type=int, help="World size")
     parser.add_argument("-nr", "--nr", default=0, type=int,
                         help="ranking within the nodes")
+    parser.add_argument(
+        "--cache_dir",
+        default="data/cache",
+        type=str,
+        help="cache directory")
+    parser.add_argument("--port", default="8888", type=str)
+    parser.add_argument(
+        "--pretrained_path",
+        default="data/upt-r50-vcoco.pt",
+        type=str,
+        help="model pretrained path")
+    parser.add_argument("--cache_epoch", default=19, type=int)
     parser.add_argument(
         '--partitions',
         nargs='+',
@@ -41,29 +54,25 @@ def get_parse_args():
         "-p",
         "--path",
         type=str,
-        default="./config.yaml",
+        default="./upt_config.yaml",
         help="config written by yaml path")
 
     return parser
 
-
-def preprocess_config(args: argparse.Namespace):
-    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-    if config.DDP:
-        args.local_rank = int(os.environ["LOCAL_RANK"])
-
-
 def main(rank, args, config):
     # whether to use DDP
     args.local_rank = rank
-    if config.DDP and config.CUDNN.ENABLED and torch.cuda.is_available():
+    if config.CUDNN.ENABLED and torch.cuda.is_available():
         misc.init_distributed_mode(args)
 
     misc.fix_random_seed(args, config)
 
-    # preprocess_config(args)
+    if misc.is_main_process():
+        TensorWriter(config)
 
-    # data_root = os.path.join(config.DATASET.ROOT, config.DATASET.NAME)
+    log_file = os.path.join(config.LOG_DIR, f"{config.PROJECT_NAME}.log")
+    setup_logger(log_file, args.local_rank)
+
     data_root = config.DATASET.ROOT
 
     trainset = DataFactory(
@@ -91,28 +100,31 @@ def main(rank, args, config):
         sampler=torch.utils.data.SequentialSampler(testset)
     )
 
-    # args.human_idx = 0
-    # if args.dataset == 'hicodet':
-    #     object_to_target = train_loader.dataset.dataset.object_to_verb
-    #     args.num_classes = 117
-    # elif args.dataset == 'vcoco':
-    object_to_target = list(train_loader.dataset.dataset.object_to_action.values())
-    idx_map = train_loader.dataset.dataset.coco_idx_map
-    upt = build_detector(config, args, object_to_target, idx_map)
-
+    log_every_n(20, "loaded data loader")
+    if config.DATASET.NAME == "hicodet":
+        object_to_target = train_loader.dataset.dataset.object_to_verb
+        args.num_classes = 117
+    elif config.DATASET.NAME == "mscoco2014":
+        object_to_target = list(
+            train_loader.dataset.dataset.object_to_action.values())
+    upt = build_detector(config, args, object_to_target)
     upt_trainer = build_upt_engine(upt, config, args)
-    if config.TRAIN:
-        upt_trainer.update_train_dataloader(train_loader)
-        upt_trainer.update_val_dataloader(test_loader)
+
+    upt_trainer.update_train_dataloader(train_loader)
+    upt_trainer.update_val_dataloader(test_loader)
+
+    if config.IS_TRAIN:
         upt_trainer.train(evaluate=False)
 
     if config.CACHE:
-        begin_epoch = config.TEST.BEGIN_EPOCH
-        end_epoch = config.TEST.END_EPOCH
-        for epoch in tqdm(range(begin_epoch, end_epoch)):
-            upt_trainer.cache_vcoco(epoch, "data/cache")
-            upt = build_detector(config, args, object_to_target)
-            upt_trainer.reload_eval_model_in_epoch(upt)
+        net_state_dict = torch.load(
+            args.pretrained_path,
+            map_location="cpu")
+        upt = build_detector(config, args, object_to_target)
+        upt.load_state_dict(net_state_dict["model_state_dict"])
+        print("loaded pretrained model")
+        upt_trainer.reload_eval_model_in_epoch(upt)
+        upt_trainer.cache_vcoco(args.cache_epoch, args.cache_dir)
 
     # else:
     #     upt_trainer.update_test_dataloader(test_loader)
@@ -122,9 +134,12 @@ def main(rank, args, config):
 if __name__ == '__main__':
     parser = get_parse_args()
     args = parser.parse_args()
+    # update_config_by_yaml(args.path)
     cfg = config
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
     os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "8888"
+    os.environ["MASTER_PORT"] = args.port
     # os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"
     print(args)
     mp.spawn(main, nprocs=args.world_size, args=(args, cfg,))

@@ -3,6 +3,8 @@ import random
 import PIL
 import torchvision
 import torchvision.transforms.functional as F
+from torch.nn.functional import interpolate
+
 from utils.box_ops import box_xyxy_to_cxcywh
 from torchvision import transforms as tfs
 
@@ -19,7 +21,10 @@ __all__ = [
     'RandomSizeCrop',
     'ToTensor',
     'Normalize',
-    'Compose']
+    'Compose',
+    'TrainTransform',
+    'EvalTransform'
+]
 
 
 def _to_list_of_tensor(x, dtype=None, device=None):
@@ -196,6 +201,23 @@ def resize(image, target, size, max_size=None, image_set='train'):
         scaled_keypoint = keypoint * \
             torch.as_tensor([ratio_width, ratio_height])
         target["keypoint"] = scaled_keypoint
+    if "boxes" in target:
+        boxes = target["boxes"]
+        scaled_boxes = boxes * \
+            torch.as_tensor([ratio_width, ratio_height, ratio_width, ratio_height])
+        target["boxes"] = scaled_boxes
+
+    if "area" in target:
+        area = target["area"]
+        scaled_area = area * (ratio_width * ratio_height)
+        target["area"] = scaled_area
+
+    h, w = rescale_size
+    target["size"] = torch.tensor([h, w])
+
+    if "masks" in target:
+        target['masks'] = interpolate(
+            target['masks'][:, None].float(), size, mode="nearest")[:, 0] > 0.5
     return rescaled_image, target
 
 
@@ -301,6 +323,10 @@ class Normalize(object):
             boxes = box_xyxy_to_cxcywh(boxes)
             boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float32)
             target["action_boxes"] = boxes
+        if "boxes" in target:
+            boxes = target["boxes"]
+            scaled_boxes = boxes * torch.as_tensor([w, h, w, h])
+            target["boxes"] = scaled_boxes
         return image, target
 
 
@@ -353,3 +379,40 @@ class ToTensor:
         reprstr += repr(self.device)
         reprstr += ')'
         return reprstr
+
+
+class TrainTransform(object):
+    def __init__(
+        self, mean=[
+            0.485, 0.456, 0.406], std=[
+            0.229, 0.224, 0.225], scales=[
+                480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800], max_size=1333):
+        normalize = Compose([
+            ToTensor(),
+            Normalize(mean, std)
+        ])
+        self.augment = Compose([
+            RandomHorizontalFlip(),
+            RandomResize(scales, max_size=max_size),
+            normalize,
+        ])
+
+    def __call__(self, img, target):
+        # target["boxes"] xyxy; "masks"(optional)
+        return self.augment(img, target)
+
+
+class EvalTransform(object):
+    def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225],
+                 max_size=1333):
+        normalize = Compose([
+            ToTensor(),
+            Normalize(mean, std)
+        ])
+        self.augment = Compose([
+            RandomResize([800], max_size=max_size),
+            normalize,
+        ])
+
+    def __call__(self, img, target):
+        return self.augment(img, target)

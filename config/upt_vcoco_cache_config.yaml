@@ -1,0 +1,114 @@
+ALPHA: 0.5
+AUX_LOSS: false
+BOX_SCORE_THRESH: 0.2
+CACHE: true
+CRITERION:
+  BBOX_LOSS_COEF: 5
+  DICE_LOSS_COEF: 1
+  EOS_COEF: 0.02
+  GIOU_LOSS_COEF: 2
+CUDNN:
+  BENCHMARK: false
+  DETERMINISTIC: true
+  ENABLED: true
+DATASET:
+  ANNO_TEST: data/mscoco2014/instances_vcoco_test.json
+  ANNO_TRAIN: data/mscoco2014/instances_vcoco_trainval.json
+  IMAGES_TEST: data/mscoco2014/train2014
+  IMAGES_TRAIN: data/mscoco2014/train2014
+  NAME: mscoco2014
+  NUM_CLASSES: 24
+  ROOT: ./data
+DATA_DIR: ''
+DDP: true
+FG_IOU_THRESH: 0.5
+GAMMA: 0.2
+HUMAN_ID: 0
+IS_TRAIN: false
+LOG_DIR: ./logs
+LOSS:
+  USE_TARGET_WEIGHT: true
+LPN: true
+MATCHER:
+  COST_BBOX: 5
+  COST_CLASS: 1
+  COST_GIOU: 2
+MAX_INSTANCES: 15
+MIN_INSTANCES: 3
+MODEL:
+  AUX_LOSS: false
+  BACKBONE: resnet50
+  BEST_MODEL: ./data
+  DEC_LAYERS: 6
+  DETR_PRETRAINED: true
+  DIM_FEEDFORWARD: 2048
+  DROPOUT: 0.1
+  ENC_LAYERS: 6
+  EXTRA: !!python/object/new:easydict.EasyDict
+    dictitems:
+      DECONV_WITH_BIAS: false
+      FINAL_CONV_KERNEL: 1
+      HEATMAP_SIZE: &id001
+      - 64
+      - 64
+      NUM_DECONV_FILTERS: &id002
+      - 256
+      - 256
+      - 256
+      NUM_DECONV_KERNELS: &id003
+      - 4
+      - 4
+      - 4
+      NUM_DECONV_LAYERS: 3
+      NUM_LAYERS: 50
+      SIGMA: 2
+      TARGET_TYPE: gaussian
+    state:
+      DECONV_WITH_BIAS: false
+      FINAL_CONV_KERNEL: 1
+      HEATMAP_SIZE: *id001
+      NUM_DECONV_FILTERS: *id002
+      NUM_DECONV_KERNELS: *id003
+      NUM_DECONV_LAYERS: 3
+      NUM_LAYERS: 50
+      SIGMA: 2
+      TARGET_TYPE: gaussian
+  HIDDEN_DIM: 256
+  IMAGE_SIZE:
+  - 256
+  - 256
+  NAME: upt
+  NHEAD: 8
+  NUM_JOINTS: 17
+  NUM_QUERIES: 100
+  POSITION_EMB: sine
+  PRETRAINED: ''
+  PRE_NORM: false
+  REPR_DIM: 512
+OUTPUT_DIR: ''
+POSE_NET: true
+PRINT_FREQ: 20
+PROJECT_NAME: upt_vcoco
+SEED: 2112112047
+TEST:
+  BATCH_SIZE: 1
+  BEGIN_EPOCH: 19
+  END_EPOCH: 20
+  FLIP_TEST: false
+  POST_PROCESS: true
+  SHIFT_HEATMAP: true
+TRAIN:
+  BATCH_SIZE: 2
+  BEGIN_EPOCH: 0
+  CHECKPOINT: ./data/checkpoint
+  CLIP_MAX_NORM: 0.1
+  DILATION: true
+  END_EPOCH: 20
+  INTERVAL_SAVE: 1
+  LR_DROP: 10
+  LR_HEAD: 0.0001
+  RESUME: false
+  SAVE_BEGIN: 4
+  SHUFFLE: false
+  WD: 0.0001
+WORKERS: 1

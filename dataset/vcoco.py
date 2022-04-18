@@ -194,7 +194,7 @@ class VCOCO(ImageDataset):
     @property
     def object_to_action(self) -> Dict[int, list]:
         """Return the list of actions for each object"""
-        object_to_action = {obj: [] for obj in list(range(0, 81))}
+        object_to_action = {obj: [] for obj in list(range(1, 81))}
         for act, obj in enumerate(self._action_to_object):
             for o in obj:
                 if act not in object_to_action[o]:

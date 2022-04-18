@@ -164,3 +164,24 @@ def binary_focal_loss_with_logits(
         return loss
     else:
         raise ValueError("Unsupported reduction method {}".format(reduction))
+
+
+def recover_boxes(boxes, w, h):
+    scale_fct = torch.stack([w, h, w, h], dim=1)
+    boxes_scaled = boxes * scale_fct[:, None, :]
+    return boxes_scaled
+
+
+def compute_rsc(boxes_1, boxes_2, shapes):
+    w, h = shapes.unbind(1)
+    boxes_1_scaled = recover_boxes(boxes_1, w, h)
+    boxes_2_scaled = recover_boxes(boxes_2, w, h)
+    x_1, y_1, w_1, h_1 = boxes_1_scaled
+    x_2, y_2, w_2, h_2 = boxes_2_scaled
+    x_1 = x_1 - 0.5 * w_1
+    y_1 = y_1 - 0.5 * h_1
+    x_2 = x_2 - 0.5 * w_2
+    y_2 = y_2 - 0.5 * h_2
+    rsc = torch.stack([(x_1 - x_2) / w_1, (y_1 - y_2) / h_1,
+                      torch.log(w_2 / w_1), torch.log(h_2 / h_1)]).to(boxes_1.device)
+    return rsc

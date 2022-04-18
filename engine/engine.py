@@ -6,6 +6,7 @@ import os.path
 import warnings
 from abc import abstractmethod
 from typing import Any, Optional, List, Union
+from utils.logger import log_every_n
 
 import torch
 from torch import nn, optim, Tensor
@@ -61,6 +62,7 @@ class Engine(object):
                  args: argparse.Namespace,
                  config: EasyDict,
                  is_train: bool = True,
+                 use_amp: bool = True,
                  device: Optional[torch.device] = None,
                  accuracy: Optional[nn.Module] = None,
                  criterion: Optional[nn.Module] = None,
@@ -69,20 +71,25 @@ class Engine(object):
                  sampler: Optional[Sampler] = None):
         self.eval_meter = AverageMeter("evaluation total loss meter")
         self.train_meter = AverageMeter("train total loss meter")
-        self.writer = TensorWriter().writer
+        self.writer = TensorWriter().writer if args.local_rank == 0 else None
         self.accuracy = 0
         self._epoch = 0
         self.is_train = is_train
         self.criterion = criterion
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
+        self.use_amp = use_amp
         self.sampler = sampler
         self.val_dataloader = None
         self.train_dataloader = None
         self.device = device if device is not None else torch.device(
             args.local_rank)
-        torch.cuda.set_device(self.device)
-        model = model.to(device)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+        # torch.cuda.set_device(self.device)
+
+        log_every_n(20, f"==>rank{args.local_rank}-{self.device}")
+
+        model = model.to(self.device)
         model = DDP(
             model,
             device_ids=[
@@ -113,11 +120,8 @@ class Engine(object):
             self._train_one_epoch(self.train_dataloader)
             self._train_one_epoch_after()
 
-            # writer.add_scalar(f"train local_rank-{self.args.local_rank} loss", train_meter.avg())
-
             # ===== evaluate =====
             if evaluate and self.val_dataloader is not None:
-
                 with torch.no_grad():
                     self._eval_one_epoch_before()
                     self._eval_one_epoch(self.val_dataloader)
@@ -127,37 +131,33 @@ class Engine(object):
         checkpoint_dir = self.checkpoint_dir
         checkpoint_file = os.path.join(
             checkpoint_dir, checkpoint_name(self._epoch))
-
-        attr_needed_saving = ['optimizer', 'model']
-        states_dict = {}
-        for attr_name in attr_needed_saving:
-            state_dict = self.get_attr_state_dict(attr_name)
-            states_dict[attr_name] = state_dict
-
+        states_dict = self._get_state_dict()
         torch.save(states_dict, checkpoint_file)
 
     def save_best_model(self):
+        pass
         best_model_dir = self.model_dir
         best_model_file = os.path.join(
             best_model_dir, f"{self.model_name}.pth")
-        attr_needed_saving = ['optimizer', 'model']
-        states_dict = {}
-        for attr_name in attr_needed_saving:
-            state_dict = self.get_attr_state_dict(attr_name)
-            states_dict[attr_name] = state_dict
-
+        states_dict = self._get_state_dict()
         torch.save(states_dict, best_model_file)
 
-    def get_attr_state_dict(self, attr_name: str):
-        value = self.__getattribute__(attr_name)
-        assert isinstance(value, (nn.Module, optim.Optimizer))
-        if attr_name == "model":
-            value = value.module.state_dict()
-        return value
+    def _get_state_dict(self):
+        states_dict = {}
+        states_dict["optimizer_state_dict"] = self.optimizer.state_dict()
+        states_dict["model_state_dict"] = self.model.module.state_dict()
+        states_dict["epoch"] = self._epoch
+        if self.lr_scheduler is not None:
+            states_dict["lr_state_dict"] = self.lr_scheduler.state_dict()
+        return states_dict
 
-    @property
-    def resume(self):
-        return self.config.TRAIN.RESUME
+    # def get_attr_state_dict(self, attr_name: str):
+    #     value = self.__getattribute__(attr_name)
+    #     assert isinstance(value, (nn.Module, optim.Optimizer))
+    #     if attr_name == "model":
+    #         value = value.module.state_dict()
+    #     return value
+
 
     @property
     def checkpoint_dir(self):
@@ -166,50 +166,47 @@ class Engine(object):
             os.mkdir(checkpoint_dir)
         return checkpoint_dir
 
-    @property
-    def model_name(self):
-        return self.config.MODEL.NAME
-
-    @property
-    def model_dir(self):
-        model_dir = self.config.MODEL.BEST_MODEL
-        if not os.path.exists(model_dir):
-            os.mkdir(model_dir)
-        return model_dir
-
     def _train_one_epoch_before(self):
         self.model.train()
+        if self.criterion is not None:
+            self.criterion.train()
         self.train_meter.reset()
         self.train_dataloader.sampler.set_epoch(self._epoch)
 
     def _train_one_epoch_after(self):
+        self.train_meter.synchronize_between_process()
         if utils.is_main_process():
             self.save_checkpoint_file()
-            print(f"saved checkpoint of {self._epoch}")
-            self.train_meter.synchronize_between_process()
+            log_every_n(
+                20, f"saved checkpoint of {self._epoch} in rank{utils.get_rank()}", 5)
             self.writer.add_scalar(
                 "train global loss",
                 self.train_meter.global_avg(),
                 self._epoch)
         self._lr_schedular_step()
 
-    # @abstractmethod
     def _train_one_epoch(
             self,
             dataloader: DataLoader):
         if utils.is_main_process():
             with tqdm(total=len(dataloader), ncols=140, desc=f"train {self._epoch}") as tbar:
-                for i, (inputs, targets) in enumerate(dataloader):
+                for i, (inputs, targets, _) in enumerate(dataloader):
                     inputs = relocate.relocate_to_device(
                         inputs, device=self.device)
                     targets = relocate.relocate_to_device(
                         targets, device=self.device)
                     self._iterate_each_train_epoch(inputs, targets)
+                    # tot_loss = self.loss.detach().cpu().item()
                     tbar.set_postfix(
-                        total_loss=self.loss.detach().cpu().item())
+                        total_loss=self.loss.detach().item(),
+                        lr=self.optimizer.param_groups[0]["lr"])
                     tbar.update()
         else:
-            for i, (inputs, targets) in enumerate(dataloader):
+            for i, (inputs, targets, _) in enumerate(dataloader):
+                inputs = relocate.relocate_to_device(
+                    inputs, device=self.device)
+                targets = relocate.relocate_to_device(
+                    targets, device=self.device)
                 self._iterate_each_train_epoch(inputs, targets)
 
     @abstractmethod
@@ -225,16 +222,26 @@ class Engine(object):
             dataloader: DataLoader):
         if utils.is_main_process():
             with tqdm(total=len(dataloader), ncols=140, desc=f"eval {self._epoch}") as tbar:
-                for i, (inputs, targets) in enumerate(dataloader):
+                for i, (inputs, targets, _) in enumerate(dataloader):
+                    inputs = relocate.relocate_to_device(
+                        inputs, device=self.device)
+                    targets = relocate.relocate_to_device(
+                        targets, device=self.device)
                     self._iterate_each_eval_epoch(inputs, targets)
                     tbar.set_postfix(total_loss=self.acc.detach().cpu().item())
                     tbar.update()
         else:
-            for i, (inputs, targets) in enumerate(dataloader):
+            for i, (inputs, targets, _) in enumerate(dataloader):
+                inputs = relocate.relocate_to_device(
+                    inputs, device=self.device)
+                targets = relocate.relocate_to_device(
+                    targets, device=self.device)
                 self._iterate_each_eval_epoch(inputs, targets)
 
     def _eval_one_epoch_before(self):
         self.model.eval()
+        if self.criterion is not None:
+            self.criterion.eval()
         self.eval_meter.reset()
 
     def _eval_one_epoch_after(self):
@@ -269,7 +276,9 @@ class Engine(object):
             return
         self.lr_scheduler.step()
 
-    def reload_eval_model_in_epoch(self, model: nn.Module):
+    def reload_eval_model_in_epoch(
+            self,
+            model: nn.Module, ):
         torch.cuda.set_device(self.device)
         model = model.to(self.device)
         model = DDP(

@@ -10,47 +10,58 @@ from easydict import EasyDict as edict
 
 config = edict()
 
-config.OUTPUT_DIR = ''
-config.PROJECT_NAME = "upt_vcoco"
+config.OUTPUT_ROOT = 'data/'
+config.PROJECT_NAME = "asnet_hico"
 config.LOG_DIR = './logs'
 config.DATA_DIR = ''
 config.WORKERS = 1
 config.PRINT_FREQ = 20
-config.SEED = 66
+config.SEED = 42
 config.AUX_LOSS = False
-config.IS_TRAIN = True
-config.POSE_NET = True
-config.LPN = True
-config.CACHE = False
+config.EVAL = False
 
-config.HUMAN_ID = 0
-config.ALPHA = 0.5
-config.GAMMA = 0.2
-config.BOX_SCORE_THRESH = 0.2
-config.FG_IOU_THRESH = 0.5
-config.MIN_INSTANCES = 3
-config.MAX_INSTANCES = 15
-
-# Model
 config.MODEL = edict()
-config.MODEL.BACKBONE = 'resnet50'
-config.MODEL.NAME = "upt"
-config.MODEL.HIDDEN_DIM = 256
-config.MODEL.REPR_DIM = 512
-config.MODEL.POSITION_EMB = 'sine'
-config.MODEL.NHEAD = 8
-config.MODEL.NUM_QUERIES = 100
-config.MODEL.ENC_LAYERS = 6
-config.MODEL.DEC_LAYERS = 6
-config.MODEL.DROPOUT = 0.1
-config.MODEL.AUX_LOSS = False
-config.MODEL.PRE_NORM = False
-config.MODEL.DIM_FEEDFORWARD = 2048
-config.MODEL.BEST_MODEL = './data'
-config.MODEL.PRETRAINED = ""
+# specific model
+config.MODEL.FILE = ''
+config.MODEL.NAME = ''
+# resume
+config.MODEL.RESUME_PATH = 'data/checkpoint/checkpoint_0.pth'
+config.MODEL.MASKS = False
 
-config.MODEL.DETR_PRETRAINED = True
+# backbone
+config.BACKBONE = edict()
+config.BACKBONE.NAME = 'resnet50'
+config.BACKBONE.DIALATION = False
 
+# transformer
+config.TRANSFORMER = edict()
+config.TRANSFORMER.BRANCH_AGGREGATION = False
+config.TRANSFORMER.POSITION_EMBEDDING = 'sine' # choices=('sine', 'learned')
+config.TRANSFORMER.HIDDEN_DIM = 256
+config.TRANSFORMER.ENC_LAYERS = 6
+config.TRANSFORMER.DEC_LAYERS = 6
+config.TRANSFORMER.DIM_FEEDFORWARD = 2048
+config.TRANSFORMER.DROPOUT = 0.1
+config.TRANSFORMER.NHEADS = 8
+config.TRANSFORMER.NUM_QUERIES = 100
+config.TRANSFORMER.REL_NUM_QUERIES = 16
+config.TRANSFORMER.PRE_NORM = False
+
+# matcher
+config.MATCHER = edict()
+config.MATCHER.COST_CLASS = 1
+config.MATCHER.COST_BBOX = 5
+config.MATCHER.COST_GIOU = 2
+
+# LOSS
+config.LOSS = edict()
+config.LOSS.AUX_LOSS = True
+config.LOSS.DICE_LOSS_COEF = 1
+config.LOSS.DET_CLS_COEF = [1, 1]
+config.LOSS.REL_CLS_COEF = 1
+config.LOSS.BBOX_LOSS_COEF = [5, 5]
+config.LOSS.GIOU_LOSS_COEF = [2, 2]
+config.LOSS.EOS_COEF = 0.1
 # Cudnn related params
 config.CUDNN = edict()
 config.CUDNN.BENCHMARK = False
@@ -59,13 +70,16 @@ config.CUDNN.ENABLED = True
 
 # DATASET related params
 config.DATASET = edict()
-config.DATASET.ROOT = './data'
-config.DATASET.NAME = 'mscoco2014'
-config.DATASET.IMAGES_TRAIN = "data/mscoco2014/train2014"
-config.DATASET.IMAGES_TEST = "data/mscoco2014/train2014"
-config.DATASET.ANNO_TRAIN = "data/mscoco2014/instances_vcoco_trainval.json"
-config.DATASET.ANNO_TEST = "data/mscoco2014/instances_vcoco_test.json"
-config.DATASET.NUM_CLASSES = 24
+config.DATASET.ROOT = 'data/hico/hico/images'
+config.DATASET.NAME = 'HICODetDataset'
+config.DATASET.MEAN = [0.485, 0.456, 0.406]
+config.DATASET.STD = [0.229, 0.224, 0.225]
+config.DATASET.MAX_SIZE = 1333
+config.DATASET.SCALES = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+config.DATASET.IMG_NUM_PER_GPU = 2
+config.DATASET.SUB_NUM_CLASSES = 1
+config.DATASET.OBJ_NUM_CLASSES = 91
+config.DATASET.REL_NUM_CLASSES = 117
 
 # Matcher
 config.MATCHER = edict()
@@ -73,66 +87,53 @@ config.MATCHER.COST_CLASS = 1
 config.MATCHER.COST_BBOX = 5
 config.MATCHER.COST_GIOU = 2
 
-# Criterion
-config.CRITERION = edict()
-config.CRITERION.DICE_LOSS_COEF = 1
-config.CRITERION.BBOX_LOSS_COEF = 5
-config.CRITERION.GIOU_LOSS_COEF = 2
-config.CRITERION.EOS_COEF = 0.02
-
-# Train
-config.TRAIN = edict()
-config.TRAIN.LR_HEAD = 1e-4
-config.TRAIN.BATCH_SIZE = 2
-config.TRAIN.WD = 1e-4
-config.TRAIN.DILATION = True
-config.TRAIN.LR_DROP = 10
-
-config.TRAIN.CLIP_MAX_NORM = 0.1
-
-config.TRAIN.BEGIN_EPOCH = 0
-config.TRAIN.END_EPOCH = 20
-
-config.TRAIN.RESUME = False
-config.TRAIN.CHECKPOINT = './data/checkpoint'
-config.TRAIN.SAVE_BEGIN = 4
-config.TRAIN.INTERVAL_SAVE = 1
-
-config.TRAIN.SHUFFLE = False
-
-# Test
-config.TEST = edict()
-
-# size of images for each device
-config.TEST.BATCH_SIZE = 1
-config.TEST.BEGIN_EPOCH = 19
-config.TEST.END_EPOCH = 20
-# Test Model Epoch
-config.TEST.FLIP_TEST = False
-config.TEST.POST_PROCESS = True
-config.TEST.SHIFT_HEATMAP = True
-
-# pose_resnet related params
+# LOSS
 config.LOSS = edict()
-config.LOSS.USE_TARGET_WEIGHT = True
+config.LOSS.AUX_LOSS = True
+config.LOSS.DICE_LOSS_COEF = 1
+config.LOSS.DET_CLS_COEF = [1, 1]
+config.LOSS.REL_CLS_COEF = 1
+config.LOSS.BBOX_LOSS_COEF = [5, 5]
+config.LOSS.GIOU_LOSS_COEF = [2, 2]
+config.LOSS.EOS_COEF = 0.1
 
-POSE_RESNET = edict()
-POSE_RESNET.NUM_LAYERS = 50
-POSE_RESNET.DECONV_WITH_BIAS = False
-POSE_RESNET.NUM_DECONV_LAYERS = 3
-POSE_RESNET.NUM_DECONV_FILTERS = [256, 256, 256]
-POSE_RESNET.NUM_DECONV_KERNELS = [4, 4, 4]
-POSE_RESNET.FINAL_CONV_KERNEL = 1
-POSE_RESNET.TARGET_TYPE = 'gaussian'
-POSE_RESNET.HEATMAP_SIZE = [64, 64]  # width * height, ex: 24 * 32
-POSE_RESNET.SIGMA = 2
+# trainer
+config.TRAINER = edict()
+config.TRAINER.FILE = ''
+config.TRAINER.NAME = ''
 
-MODEL_EXTRAS = {
-    'pose_resnet': POSE_RESNET,
-}
-config.MODEL.NUM_JOINTS = 17
-config.MODEL.IMAGE_SIZE = [256, 256]  # width * height, ex: 192 * 256
-config.MODEL.EXTRA = MODEL_EXTRAS["pose_resnet"]
+# train
+config.TRAIN = edict()
+config.TRAIN.OPTIMIZER = ''
+config.TRAIN.LR = 0.0001
+config.TRAIN.LR_BACKBONE = 0.00001
+config.TRAIN.MOMENTUM = 0.9
+config.TRAIN.WEIGHT_DECAY = 0.0001
+# optimizer SGD
+config.TRAIN.NESTEROV = False
+# learning rate scheduler
+config.TRAIN.LR_FACTOR = 0.1
+config.TRAIN.LR_DROP = 55
+config.TRAIN.CLIP_MAX_NORM = 0.1
+# config.TRAIN.MAX_EPOCH = 100
+# train resume
+config.TRAIN.RESUME = False
+config.TRAIN.BEGIN_EPOCH = 1
+config.TRAIN.END_EPOCH = 100
+config.TRAIN.CHECKPOINT = "data/checkpoint"
+# print freq
+config.TRAIN.PRINT_FREQ = 20
+# save checkpoint during train
+config.TRAIN.SAVE_INTERVAL = 5
+config.TRAIN.SAVE_EVERY_CHECKPOINT = True
+# val when train
+config.TRAIN.VAL_WHEN_TRAIN = False
+
+# test
+config.TEST = edict()
+config.TEST.REL_ARRAY_PATH = 'data/hico/hico/rel_np.npy'
+config.TEST.USE_EMB = True
+config.TEST.MODE = 'hico'
 
 
 def _update_dict(k, v):

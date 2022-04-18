@@ -4,12 +4,11 @@ DETR model and criterion classes.
 """
 import os.path
 
-from utils.model import load_pretrained_model
 from model.transformer import build_transformer
 from model.segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                                 dice_loss, sigmoid_focal_loss)
 from model.backbone import build_backbone
-from model.ds.nested_tensor import NestedTensor, nested_tensor_from_tensor_list
+from utils.misc import NestedTensor, nested_tensor_from_tensor_list
 from utils.hoi_matcher import build_matcher
 # from loss.set_criterion import SetCriterion
 import argparse
@@ -357,8 +356,7 @@ class MLP(nn.Module):
 
 
 def build_detr(config: easydict.EasyDict, args: argparse.Namespace):
-    num_classes = 91
-    # num_classes = 81
+    num_classes = 80
     device = torch.device(args.local_rank)
 
     backbone = build_backbone(config)
@@ -373,7 +371,8 @@ def build_detr(config: easydict.EasyDict, args: argparse.Namespace):
         aux_loss=config.AUX_LOSS,
     )
     # model = load_pretrained_model(model, 'detr-r50-dc5-f0fb7ef5')
-    model.load_state_dict(torch.load('./data/detr-r50-dc5-f0fb7ef5.pth', map_location='cpu')['model'])
+    if config.MODEL.DETR_PRETRAINED:
+        model.load_state_dict(torch.load('./data/detr-r50-vcoco.pth', map_location='cpu')['model_state_dict'])
 
     matcher = build_matcher(config)
     weight_dict = {'loss_ce': 1, 'loss_bbox': config.CRITERION.BBOX_LOSS_COEF}

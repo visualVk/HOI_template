@@ -4,13 +4,14 @@ from typing import OrderedDict, Optional, Union, Dict, List
 
 import torch
 import argparse
+import os.path as osp
 from logging import Logger
 from config.config import config as Cfg
 from torch import nn, Tensor
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 
-from model.ds import NestedTensor
-
+from utils.logger import log_every_n
+from utils.misc import NestedTensor
 
 def to_ddp(
         model: nn.Module,
@@ -99,32 +100,74 @@ def _reload_parameters(state_dict: OrderedDict,
     attr.load_state_dict(state_dict[key])
 
 
-def load_checkpoint(
-        model: nn.Module,
-        optimizer: torch.optim.Optimizer,
-        begin_epoch: int = 1,
-        lr_scheduler: Optional[nn.Module] = None):
-    root_path = os.path.join('./data/checkpoint')
-    checkpoint_filename = f"checkpoint_{begin_epoch - 1}.pth"
-    checkpoint_path = os.path.join(root_path, checkpoint_filename)
-    result = []
-    with open(checkpoint_path, 'r') as fp:
-        checkpoint = torch.load(fp, map_location='cpu')
+# def load_checkpoint(
+#         model: nn.Module,
+#         optimizer: torch.optim.Optimizer,
+#         begin_epoch: int = 1,
+#         lr_scheduler: Optional[nn.Module] = None):
+#     root_path = os.path.join('./data/checkpoint')
+#     checkpoint_filename = f"checkpoint_{begin_epoch - 1}.pth"
+#     checkpoint_path = os.path.join(root_path, checkpoint_filename)
+#     result = []
+#     with open(checkpoint_path, 'r') as fp:
+#         checkpoint = torch.load(fp, map_location='cpu')
+#
+#         _reload_parameters(checkpoint, model, 'model')
+#         _reload_parameters(checkpoint, optimizer, 'optimizer')
+#         result.append(model)
+#         result.append(optimizer)
+#         if lr_scheduler is not None:
+#             _reload_parameters(checkpoint, lr_scheduler, 'lr_scheduler')
+#             result.append(lr_scheduler)
+#     return result
+#
+#
+# def load_pretrained_model(model: nn.Module, filename: str):
+#     pretrained_model_path = os.path.join('./data/', f'{filename}.pth')
+#     with open(pretrained_model_path, 'rb') as fp:
+#         pretrained_parameters = torch.load(fp, map_location='cpu')
+#         _reload_parameters(pretrained_parameters, model, 'model')
+#
+    # return model
 
-        _reload_parameters(checkpoint, model, 'model')
-        _reload_parameters(checkpoint, optimizer, 'optimizer')
-        result.append(model)
-        result.append(optimizer)
-        if lr_scheduler is not None:
-            _reload_parameters(checkpoint, lr_scheduler, 'lr_scheduler')
-            result.append(lr_scheduler)
-    return result
 
+def load_checkpoint(cfg, model, optimizer, lr_scheduler, device, module_name='model'):
+    last_iter = -1
+    resume_path = cfg.MODEL.RESUME_PATH
+    resume = cfg.TRAIN.RESUME
+    if resume_path and resume:
+        if osp.exists(resume_path):
+            checkpoint = torch.load(resume_path, map_location='cpu')
+            # resume
+            if 'model_state_dict' in checkpoint:
+                model.module.load_state_dict(checkpoint['model_state_dict'], strict=False)
+                log_every_n(20, f'==> model pretrained from {resume_path} \n')
+            elif 'model' in checkpoint:
+                if module_name == 'detr':
+                    model.module.detr_head.load_state_dict(checkpoint['model'], strict=False)
+                    log_every_n(20, f'==> detr pretrained from {resume_path} \n')
+                else:
+                    model.module.load_state_dict(checkpoint['model'], strict=False)
+                    log_every_n(20, f'==> model pretrained from {resume_path} \n')
+            if 'optimizer_state_dict' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                log_every_n(20, f'==> optimizer resumed, continue training')
+                for state in optimizer.state.values():
+                    for k, v in state.items():
+                        if torch.is_tensor(v):
+                            state[k] = v.to(device)
+            if 'optimizer_state_dict' in checkpoint and 'lr_state_dict' in checkpoint and 'epoch' in checkpoint:
+                lr_scheduler.load_state_dict(checkpoint['lr_state_dict'])
+                last_iter = checkpoint['epoch']
+                log_every_n(20, f'==> last_epoch = {last_iter}')
+            if 'epoch' in checkpoint:
+                last_iter = checkpoint['epoch']
+                log_every_n(20, f'==> last_epoch = {last_iter}')
+            # pre-train
+        else:
+            log_every_n(40, f"==> checkpoint do not exists: \"{resume_path}\"")
+            raise FileNotFoundError
+    else:
+        log_every_n(20, "==> train model without resume")
 
-def load_pretrained_model(model: nn.Module, filename: str):
-    pretrained_model_path = os.path.join('./data/', f'{filename}.pth')
-    with open(pretrained_model_path, 'rb') as fp:
-        pretrained_parameters = torch.load(fp, map_location='cpu')
-        _reload_parameters(pretrained_parameters, model, 'model')
-
-    return model
+    return model, optimizer, lr_scheduler, last_iter

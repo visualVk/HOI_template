@@ -29,8 +29,7 @@ from tqdm import tqdm
 
 class VCOCOeval(object):
 
-    def __init__(self, vsrl_annot_file, coco_annot_file,
-                 split_file):
+    def __init__(self, vsrl_annot_file, coco_annot_file, split_file):
         """Input:
         vslr_annot_file: path to the vcoco annotations
         coco_annot_file: path to the coco annotations

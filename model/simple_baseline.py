@@ -380,6 +380,11 @@ class PoseNetWORes(nn.Module):
             padding=1 if extra.FINAL_CONV_KERNEL == 3 else 0
         )
 
+
+    def _init_weights(self):
+        nn.init.xavier_normal(self.conv1d.weight)
+        nn.init.xavier_normal(self.linear.weight)
+
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:

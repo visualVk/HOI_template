@@ -1,18 +1,8 @@
 import argparse
 import os
 
-import torch
-import torch.multiprocessing as mp
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
 from config.upt_vcoco_config import config as cfg
-from dataset.data_factory import DataFactory
-from dataset.data_factory import custom_collate
-from model.upt.upt import build_detector
-from utils import misc
-from utils.draw_tensorboard import TensorWriter
-from utils.model import adapt_device
+from utils.logger import setup_logger, create_small_table, log_every_n
 from utils.vsrl_eval import VCOCOeval
 
 
@@ -25,6 +15,10 @@ def get_parse_args():
     parser.add_argument("--world_size", default=1, type=int, help="World size")
     parser.add_argument("-nr", "--nr", default=0, type=int,
                         help="ranking within the nodes")
+    parser.add_argument(
+        "--cache_file",
+        default="data/cache/cache_19.pkl",
+        type=str)
     parser.add_argument(
         '--partitions',
         nargs='+',
@@ -54,25 +48,24 @@ def preprocess_config(args: argparse.Namespace):
 
 
 def main(rank, args, config):
-    begin_epoch = config.TEST.BEGIN_EPOCH
-    end_epoch = config.TEST.END_EPOCH
-    writer = TensorWriter().writer
 
     vsrl_annot_file = "data/mscoco2014/vcoco_test.json"
     coco_file = "data/mscoco2014/instances_vcoco_all_2014.json"
     split_file = "data/mscoco2014/splits/vcoco_test.ids"
     vcocoeval = VCOCOeval(vsrl_annot_file, coco_file, split_file)
-    for epoch in range(begin_epoch, end_epoch):
-        print(f"evaluate epoch {epoch}:")
-        # Change this line to match the path of your cached file
-        det_file = f"./data/cache/cache_{epoch}.pkl"
+    # for epoch in range(begin_epoch, end_epoch):
+    print(f"evaluate {args.cache_file}")
+    # Change this line to match the path of your cached file
+    det_file = args.cache_file
 
-        print(f"Loading cached results from {det_file}.")
-        mAP_a, mAP_r_1, mAP_r_2 = vcocoeval._do_eval(det_file, ovr_thresh=0.5)
-        # if misc.is_main_process():
-        writer.add_scalar("mAP of agent", mAP_a, epoch)
-        writer.add_scalar("mAP of role in scenario 1", mAP_r_1, epoch)
-        writer.add_scalar("mAP of role in scenario 2", mAP_r_2, epoch)
+    print(f"Loading cached results from {det_file}.")
+    agent_ap, s1_ap, s2_ap = vcocoeval._do_eval(det_file, ovr_thresh=0.5)
+    ap_table = create_small_table(
+        dict(
+            agent_ap=agent_ap,
+            scenario_1_ap=s1_ap,
+            scenario_2_ap=s2_ap))
+    log_every_n(20, f"#{ap_table}")
 
 
 if __name__ == '__main__':
@@ -82,5 +75,7 @@ if __name__ == '__main__':
     # os.environ["MASTER_PORT"] = "8888"
     # os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"
     print(args)
+    log_dir = os.path.join(cfg.LOG_DIR, "log_upt_inference.log")
+    setup_logger(log_dir)
     main(0, args, cfg)
     # mp.spawn(main, nprocs=args.world_size, args=(args, cfg,))

@@ -6,6 +6,7 @@ import os
 import pickle
 from utils.vsrl_eval import VCOCOeval
 import utils.vcoco_cached_helper as vhelper
+from utils import misc
 from typing import Optional
 
 import torch
@@ -37,12 +38,37 @@ class UPT_Trainer(Engine):
             args,
             config,
             is_train,
+            True,
             device,
             accuracy,
             criterion,
             optimizer,
             lr_scheduler,
             sampler)
+
+    def _train_one_epoch(
+            self,
+            dataloader: DataLoader):
+        if misc.is_main_process():
+            with tqdm(total=len(dataloader), ncols=140, desc=f"train {self._epoch}") as tbar:
+                for i, (inputs, targets) in enumerate(dataloader):
+                    inputs = relocate.relocate_to_device(
+                        inputs, device=self.device)
+                    targets = relocate.relocate_to_device(
+                        targets, device=self.device)
+                    self._iterate_each_train_epoch(inputs, targets)
+                    # tot_loss = self.loss.detach().cpu().item()
+                    tbar.set_postfix(
+                        total_loss=self.loss.detach().item(),
+                        lr=self.optimizer.param_groups[0]["lr"])
+                    tbar.update()
+        else:
+            for i, (inputs, targets) in enumerate(dataloader):
+                inputs = relocate.relocate_to_device(
+                    inputs, device=self.device)
+                targets = relocate.relocate_to_device(
+                    targets, device=self.device)
+                self._iterate_each_train_epoch(inputs, targets)
 
     def _iterate_each_train_epoch(self, inputs, targets):
         loss = self.model(inputs, targets)
@@ -121,6 +147,7 @@ def build_upt_engine(upt: nn.Module, config, args):
     #     for rn in rel_name:
     #         if rn in n:
     #             p.requires_grad = False
+
     param_dicts = [{
         "params": [p for n, p in upt.named_parameters()
                    if "interaction_head" in n and p.requires_grad]
@@ -131,6 +158,16 @@ def build_upt_engine(upt: nn.Module, config, args):
         weight_decay=config.TRAIN.WD
     )
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optim, config.TRAIN.LR_DROP)
+
+    if config.TRAIN.RESUME:
+        checkpoint_file = os.path.join(
+            config.TRAIN.CHECKPOINT,
+            f"checkpoint_{config.TRAIN.BEGIN_EPOCH}.pth")
+        states_dict = torch.load(checkpoint_file, map_location="cpu")
+        upt.load_state_dict(states_dict["model_state_dict"])
+        optim.load_state_dict(states_dict["optimizer_state_dict"])
+        # lr_scheduler.load_state_dict(states_dict["lr_state_dict"])
+        # lr_scheduler.step(config.TRAIN.BEGIN_EPOCH)
 
     upt_trainer = UPT_Trainer(
         upt, args, config, device=torch.device(

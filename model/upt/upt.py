@@ -1,4 +1,5 @@
-from model.ds.nested_tensor import nested_tensor_from_tensor_list
+from utils.logger import log_every_n
+from utils.misc import nested_tensor_from_tensor_list
 from utils import box_ops
 from model.detr.detr import build_detr as build_model
 from model.simple_baseline import get_post_net_without_res
@@ -126,7 +127,7 @@ class UPT(nn.Module):
         n_p = len(torch.nonzero(labels))
         if dist.is_initialized():
             world_size = dist.get_world_size()
-            n_p = torch.as_tensor([n_p], device='cuda')
+            n_p = torch.as_tensor([n_p], device=labels.device)
             dist.barrier()
             dist.all_reduce(n_p)
             n_p = (n_p / world_size).item()
@@ -136,7 +137,7 @@ class UPT(nn.Module):
             ), labels, reduction='sum',
             alpha=self.alpha, gamma=self.gamma
         )
-
+        # return loss / n_p
         return loss / (n_p + 1 if n_p == 0 else n_p)
 
     def compute_keypoint_loss(
@@ -179,8 +180,15 @@ class UPT(nn.Module):
                 else:
                     loss += self._compute_keypoint_loss(
                         heatmap, scaled_targets, image_size)
+            heatmaps_p = len(heatmaps)
+            heatmaps_p = heatmaps_p if heatmaps_p > 0 else 1
+            # if dist.is_initialized():
+            #     heatmaps_p = torch.as_tensor([heatmaps_p], device=heatmap.device)
+            #     dist.barrier()
+            #     dist.all_reduce(heatmaps_p)
+            #     heatmaps_p = heatmaps_p.item()
 
-            loss /= len(heatmaps)
+            loss /= heatmaps_p
         return loss
 
     def _compute_keypoint_loss(
@@ -327,7 +335,7 @@ class UPT(nn.Module):
         src, mask = features[-1].decompose()
         assert mask is not None
         input_proj = self.detector.input_proj(src)
-        hs = self.detector.transformer(
+        hs, memory = self.detector.transformer(
             input_proj, mask, self.detector.query_embed.weight, pos[-1])[0]
 
         outputs_class = self.detector.class_embed(hs)
@@ -336,8 +344,8 @@ class UPT(nn.Module):
         results = {
             'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         results = self.postprocessor(results, image_sizes)
-        if self.idx_map is not None:
-            remove_negative(results, self.idx_map)
+        # if self.idx_map is not None:
+        #     remove_negative(results, self.idx_map)
         region_props = self.prepare_region_proposals(results, hs[-1])
 
         if self.pose_net is not None:
