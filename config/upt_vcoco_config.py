@@ -20,6 +20,7 @@ config.SEED = 66
 config.AUX_LOSS = False
 config.IS_TRAIN = True
 config.POSE_NET = True
+config.TRAIN_POSE_NET = True
 config.LPN = True
 config.CACHE = False
 
@@ -83,7 +84,7 @@ config.CRITERION.EOS_COEF = 0.02
 # Train
 config.TRAIN = edict()
 config.TRAIN.LR_HEAD = 1e-4
-config.TRAIN.BATCH_SIZE = 2
+config.TRAIN.BATCH_SIZE = 1
 config.TRAIN.WD = 1e-4
 config.TRAIN.DILATION = True
 config.TRAIN.LR_DROP = 10

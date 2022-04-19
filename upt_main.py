@@ -121,7 +121,7 @@ def main(rank, args, config):
             args.pretrained_path,
             map_location="cpu")
         upt = build_detector(config, args, object_to_target)
-        upt.load_state_dict(net_state_dict["model_state_dict"])
+        upt.load_state_dict(net_state_dict["model_state_dict"], strict=False)
         print("loaded pretrained model")
         upt_trainer.reload_eval_model_in_epoch(upt)
         upt_trainer.cache_vcoco(args.cache_epoch, args.cache_dir)

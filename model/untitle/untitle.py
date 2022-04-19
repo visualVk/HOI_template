@@ -82,7 +82,8 @@ class NNPT(nn.Module):
         o_coord = self.detector.bbox_embed(hs).sigmoid()
         for batch_idx, (obj, box_o) in enumerate(zip(o_class, o_coord)):
             o_max_indices = obj.max(-1)[-1]
-            human_indices = torch.nonzero(o_max_indices == self.human_idx).squeeze(1)
+            human_indices = torch.nonzero(
+                o_max_indices == self.human_idx).squeeze(1)
             box_h_selected = box_o[human_indices]
             box_o_selected = box_o
             n_h = box_h_selected.size(0)
@@ -100,13 +101,7 @@ class NNPT(nn.Module):
             x = x.flatten()
             y = y.flatten()
             oa_rsc = compute_rsc(box_h_selected[x], box_o_selected[y], shapes)
-            rels_repr[batch_idx]
-
-
-
-        # results = {'pred_logits': outputs_class[-1],
-        #            'pred_boxes': outputs_coord[-1]}
-
+            # re sample x, y, w, h to create a heatmap
 
         h_pointer_repr = F.normalize(
             self.h_pointer_embed(rels_repr), p=2, dim=-1)
@@ -127,38 +122,24 @@ class NNPT(nn.Module):
                     2)) /
             self.tau for rel_repr in o_pointer_repr]
 
-        h_indices = [output_idx.max(-1)[-1] for output_idx in outputs_h_idx]
-        o_indices = [output_idx.max(-1)[-1] for output_idx in outputs_o_idx]
-        obj_logit_stack = [torch.stack([o_class[batch_,
-                                                o_idx,
-                                                :] for batch_,
-                                        o_idx in enumerate(o_indice)],
-                                       0) for o_indice in o_indices]
-        obj_bbox_stack = [torch.stack([o_coord[batch_,
-                                               o_idx,
-                                               :] for batch_,
-                                       o_idx in enumerate(o_indice)],
-                                      0) for o_indice in o_indices]
-        h_bbox_stack = [torch.stack([o_coord[batch_,
-                                             h_idx,
-                                             :] for batch_,
-                                     h_idx in enumerate(h_indice)],
-                                    0) for h_indice in h_indices]
-
         rels_repr = rels_repr
         rels_class = self.rel_class_embed(rels_repr)
         rels_repr_aug = F.normalize(rels_repr + hs, dim=-1)
         rels_coord = self.rel_bbox_embed(rels_repr_aug).sigmoid()
+        h_rel_scores = [torch.bmm(output_h_idx, o_class[i])
+                        for i, output_h_idx in enumerate(outputs_h_idx)]
+        o_rel_scores = [torch.bmm(output_o_idx, o_class[i])
+                        for i, output_o_idx in enumerate(outputs_o_idx)]
 
         out = {
             "pred_logits": o_class[-1],
             "pred_boxes": o_coord[-1],
             "pred_hidx": outputs_h_idx[-1],
             "pred_oidx": outputs_o_idx[-1],
-            "pred_h_boxes": h_bbox_stack[-1],
-            "pred_o_boxes": obj_bbox_stack[-1],
             "pred_rel_logits": rels_class[-1],
             "pred_rel_coord": rels_coord[-1],
+            "h_rel_score": h_rel_scores[-1],
+            "o_rel_score": o_rel_scores[-1]
         }
 
         if self.hoi_aux_loss:  # auxiliary loss
@@ -168,7 +149,7 @@ class NNPT(nn.Module):
                 outputs_h_idx,
                 outputs_o_idx,
                 rels_class,
-                obj_bbox_stack) if self.return_obj_class else self._set_aux_loss(
+            ) if self.return_obj_class else self._set_aux_loss(
                 o_class,
                 o_coord,
                 outputs_h_idx,
@@ -183,14 +164,35 @@ class NNPT(nn.Module):
             outputs_coord,
             outputs_hidx,
             outputs_oidx,
-            outputs_action):
-        return [{'pred_logits': a, 'pred_boxes': b, 'pred_hidx': c, 'pred_oidx': d, 'pred_rel_logits': e}
-                for a, b, c, d, e in zip(
-                    outputs_class[-1:].repeat((outputs_action.shape[0], 1, 1, 1)),
-                    outputs_coord[-1:].repeat((outputs_action.shape[0], 1, 1, 1)),
-                    outputs_hidx[:-1],
-                    outputs_oidx[:-1],
-                    outputs_action[:-1])]
+            outputs_action,
+            outputs_h_rel_score,
+            outputs_o_rel_score
+    ):
+        return [{'pred_logits': a,
+                 'pred_boxes': b,
+                 'pred_hidx': c,
+                 'pred_oidx': d,
+                 'pred_rel_logits': e,
+                 'pred_h_rel_score': f,
+                 'pred_o_rel_score': g} for a,
+                b,
+                c,
+                d,
+                e,
+                f,
+                g in zip(outputs_class[-1:].repeat((outputs_action.shape[0],
+                                                    1,
+                                                    1,
+                                                    1)),
+                         outputs_coord[-1:].repeat((outputs_action.shape[0],
+                                                    1,
+                                                    1,
+                                                    1)),
+                         outputs_hidx[:-1],
+                         outputs_oidx[:-1],
+                         outputs_action[:-1],
+                         outputs_h_rel_score[:-1],
+                         outputs_o_rel_score[:-1])]
 
     @torch.jit.unused
     def _set_aux_loss_with_tgt(

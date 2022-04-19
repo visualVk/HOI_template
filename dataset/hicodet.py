@@ -7,7 +7,7 @@ import transforms as wtfs
 import numpy as np
 
 from constants import BBOX
-from model.ds import nested_tensor_from_tensor_list
+from utils.misc import nested_tensor_from_tensor_list
 from utils.box_ops import *
 
 from dataset.base import ImageDataset

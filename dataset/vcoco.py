@@ -14,6 +14,7 @@ import numpy as np
 
 from typing import Optional, List, Callable, Tuple, Any, Dict
 from dataset.base import ImageDataset
+from utils.logger import log_every_n
 
 keypoint_to_idx = {'nose': 0,
                    'left_eye': 1,
@@ -235,6 +236,7 @@ class VCOCO(ImageDataset):
                 continue
             for act, obj in zip(
                     anno_in_image['actions'], anno_in_image['objects']):
+
                 num_instances[act] += 1
                 if obj not in valid_objects[act]:
                     valid_objects[act].append(obj)
@@ -246,9 +248,13 @@ class VCOCO(ImageDataset):
 
     def _add_heatmap_to_target(self):
         for i, anno in enumerate(self._anno):
-            if "keypoints" not in anno.keys():
+            if "keypoints" not in anno.keys() or len(anno["actions"]) == 0:
                 continue
-            for j, keypoint in enumerate(anno["keypoints"]):
-                joints = np.array(keypoint)
-                joints = np.array(np.split(joints, 17))
-                self._anno[i]["keypoints"][j] = joints.tolist()
+            keypoints = anno["keypoints"]
+            joints = np.array(keypoints, dtype=np.float32)
+            joints = np.stack(np.split(joints, 17, axis=1), axis=1)
+            self._anno[i]["keypoints"] = joints.tolist()
+            # for j, keypoint in enumerate(anno["keypoints"]):
+            #     joints = np.array(keypoint, dtype=np.float32)
+            #     joints = np.array(np.split(joints, 17))
+            #     self._anno[i]["keypoints"][j] = joints.tolist()

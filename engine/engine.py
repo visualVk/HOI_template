@@ -87,7 +87,7 @@ class Engine(object):
         self.scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
         # torch.cuda.set_device(self.device)
 
-        log_every_n(20, f"==>rank{args.local_rank}-{self.device}")
+        # log_every_n(20, f"==>rank{args.local_rank}-{self.device}")
 
         model = model.to(self.device)
         model = DDP(

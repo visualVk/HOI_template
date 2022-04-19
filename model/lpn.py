@@ -2,6 +2,7 @@ from typing import Union, Tuple
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 class LPN(nn.Module):
@@ -39,3 +40,14 @@ class LPN(nn.Module):
 def build_lpn_model(hidden_size, hidden_num, num_joints, heatmap_size):
     lpn = LPN(hidden_size, hidden_num, num_joints, heatmap_size)
     return lpn
+
+
+class LPN_2(nn.Module):
+    def __init__(self) -> None:
+        super(LPN_2, self).__init__()
+        self.conv1 = nn.Conv2d(256, 2048, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.interpolate(x, 8, 8)
+        return x

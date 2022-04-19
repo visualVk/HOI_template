@@ -76,6 +76,7 @@ class UPT_Trainer(Engine):
         self.optimizer.zero_grad(set_to_none=True)
 
         tot_loss = sum(l for _, l in loss.items())
+        tot_loss = tot_loss.to(torch.float32)
         self.loss = tot_loss
         self.train_meter.update(tot_loss.detach().item())
 
