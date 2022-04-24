@@ -14,11 +14,11 @@ import logging
 import torch
 import torch.nn as nn
 from collections import OrderedDict
-
+from loguru import logger
 from utils.model import adapt_device
 
 BN_MOMENTUM = 0.1
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -254,15 +254,12 @@ class PoseResNet(nn.Module):
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        f = self.layer4(x)
-        # print(x.shape)
-        # print(t.shape)
+        x = self.layer4(x)
 
-        x = self.deconv_layers(f)
-        # print(x.shape)
+        x = self.deconv_layers(x)
         x = self.final_layer(x)
 
-        return f, x
+        return x
 
     # def _get_t(self, in_channel, out_channel, kernel, stide):
     #     return nn.Conv2d(in_channel, out_channel, kernel)

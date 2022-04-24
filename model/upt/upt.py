@@ -152,13 +152,9 @@ class UPT(nn.Module):
         gt_bx_h = targets['boxes_h']
         gt_bx_o = targets['boxes_o']
 
-        x, y = torch.nonzero(torch.min(
-            box_iou(boxes_h, gt_bx_h),
-            box_iou(boxes_o, gt_bx_o)
-        ) >= self.fg_iou_thresh).unbind(1)
-
-        joints_gt = joints_gt[y]
-        return joints_gt
+        x, y = torch.nonzero(box_iou(boxes_h, gt_bx_h) >=
+                             self.fg_iou_thresh).unbind(1)
+        return x, y
 
     def compute_keypoinit_acc(
             self,
@@ -169,25 +165,22 @@ class UPT(nn.Module):
             preds,
             targets):
         acc = 0
+        l1loss = nn.MSELoss()
+        tot_p = 0
         for pred, bx, h, o, sizes, target in zip(
                 preds, boxes, bh, bo, images_shapes, targets):
             s_h, s_w = sizes
-            num_joints = pred.size(1)
             joints_gt = target["keypoints"][:, :, :-1]
-            if joints_gt.size(0) == 0:
-                joints_gt = torch.zeros_like(pred, dtype=torch.float32)
-            # elif pred.size(0) > joints_gt.size(0):
-            #     pred = pred[:joints_gt.size(0), :, :]
-            # else:
-            #     pred = torch.cat(
-            #         [pred, torch.zeros((joints_gt.size(0) - pred.size(0), 17, 2)).to(pred.device)], dim=0).to(pred.device)
+            pred = pred[h]
             joints_gt /= torch.tensor([s_h, s_w]).to(pred.device)
-            joints_gt = joints_gt.flatten(1)
-            pred = pred.flatten(1)
-            cost = torch.cdist(pred, joints_gt, p=1)
-            row_idx, col_idx = linear_sum_assignment(cost.detach().cpu())
-            acc += cost[row_idx, col_idx].sum() / num_joints
-
+            x, y = self.associate_joints_with_ground_truth(
+                bx[h], bx[o], target)
+            pred = pred[x]
+            joints_gt = joints_gt[y]
+            thresh = nn.Threshold(0, 0)
+            acc += thresh(l1loss(pred, joints_gt)) / joints_gt.size(1)
+            tot_p += x.size(0)
+        acc /= len(preds)
         return acc
 
     def prepare_region_proposals(self, results, hidden_states):
@@ -333,6 +326,8 @@ class UPT(nn.Module):
                 human_hidden_states = region_prop["human_hidden_states"]
                 object_hidden_states = region_prop["object_hidden_states"]
                 pose_repr, joint_coord = self.pose_net(human_hidden_states)
+
+                joint_coord = torch.clamp(joint_coord, torch.tensor([0, 0], device=self.device), image_sizes[i])
                 # pose_repr_add = torch.zeros_like(region_prop["hidden_states"]).to(human_hidden_states.device)
                 pose_repr = torch.cat([pose_repr, object_hidden_states])
                 pose_reprs.append(pose_repr)
@@ -380,6 +375,10 @@ class UPT(nn.Module):
                 interaction_part_loss=interaction_part_loss,
                 pose_loss=pose_loss)
             return loss_dict
+
+        if self.train_pose:
+            pose_joints = [pose_joint * image_sizes[i] for i, pose_joint in enumerate(pose_joints)]
+            return pose_joints
 
         detections = self.postprocessing(
             boxes, bh, bo, logits, prior, objects, attn_maps, image_sizes)

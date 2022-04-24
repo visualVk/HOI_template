@@ -11,10 +11,12 @@ import torch.distributed as dist
 from typing import Optional, Union, Any, List, Iterable
 from collections import deque
 
+
 class Meter:
     """
     Base class
     """
+
     def __init__(self, maxlen: Optional[int] = None) -> None:
         self._deque = deque(maxlen=maxlen)
         self._maxlen = maxlen
@@ -64,6 +66,7 @@ class Meter:
         """Return the content"""
         return [item for item in self._deque]
 
+
 class NumericalMeter(Meter):
     """
     Meter class with numerals as elements
@@ -103,6 +106,7 @@ class NumericalMeter(Meter):
         else:
             raise ValueError("Cannot take min. The meter is empty.")
 
+
 class SyncedNumericalMeter(NumericalMeter):
     """
     Numerical meter synchronized across subprocesses. By default, it is assumed that
@@ -111,11 +115,13 @@ class SyncedNumericalMeter(NumericalMeter):
     process group before instantiating the meter by
         torch.distributed.init_process_group(backbone="nccl", ...)
     """
+
     def __init__(self, maxlen: Optional[int] = None) -> None:
         if not dist.is_available():
             raise AssertionError("Torch not compiled with distributed package")
         if not dist.is_initialized():
-            raise AssertionError("Default process group has not been initialized")
+            raise AssertionError(
+                "Default process group has not been initialized")
         super().__init__(maxlen=maxlen)
 
     def append(self, x: Union[int, float]) -> None:
@@ -126,7 +132,7 @@ class SyncedNumericalMeter(NumericalMeter):
         """
         if type(x) in NumericalMeter.VALID_TYPES:
             super().append(x)
-        elif type(x) is torch.Tensor:
+        elif isinstance(x, torch.Tensor):
             super().append(x.item())
         else:
             raise TypeError('Unsupported data type {}'.format(x))
@@ -187,6 +193,8 @@ class SyncedNumericalMeter(NumericalMeter):
             dist.all_reduce(min_, op=dist.ReduceOp.MIN)
             return min_.item()
 
+
+
 def all_gather(data: Any) -> List[Any]:
     """
     Run all_gather on arbitrary picklable data (not necessarily tensors)
@@ -217,9 +225,17 @@ def all_gather(data: Any) -> List[Any]:
     # gathering tensors of different shapes
     tensor_list = []
     for _ in size_list:
-        tensor_list.append(torch.empty((max_size,), dtype=torch.uint8, device="cuda"))
+        tensor_list.append(
+            torch.empty(
+                (max_size,), dtype=torch.uint8, device="cuda"))
     if local_size != max_size:
-        padding = torch.empty(size=(max_size - local_size,), dtype=torch.uint8, device="cuda")
+        padding = torch.empty(
+            size=(
+                max_size -
+                local_size,
+            ),
+            dtype=torch.uint8,
+            device="cuda")
         tensor = torch.cat((tensor, padding), dim=0)
     dist.all_gather(tensor_list, tensor)
 

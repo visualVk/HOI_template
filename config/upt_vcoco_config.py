@@ -15,14 +15,15 @@ config.PROJECT_NAME = "upt_vcoco"
 config.LOG_DIR = './logs'
 config.DATA_DIR = ''
 config.WORKERS = 1
-config.PRINT_FREQ = 20
+config.PRINT_FREQ = 5
 config.SEED = 66
 config.AUX_LOSS = False
-config.IS_TRAIN = True
+config.IS_TRAIN = False
 config.POSE_NET = True
 config.TRAIN_POSE_NET = True
 config.LPN = True
 config.CACHE = False
+config.PRETRAINED_POSE_NET = ''
 
 config.HUMAN_ID = 0
 config.ALPHA = 0.5
@@ -87,12 +88,12 @@ config.TRAIN.LR_HEAD = 1e-4
 config.TRAIN.BATCH_SIZE = 1
 config.TRAIN.WD = 1e-4
 config.TRAIN.DILATION = True
-config.TRAIN.LR_DROP = 10
+config.TRAIN.LR_DROP = 5
 
 config.TRAIN.CLIP_MAX_NORM = 0.1
 
 config.TRAIN.BEGIN_EPOCH = 0
-config.TRAIN.END_EPOCH = 20
+config.TRAIN.END_EPOCH = 70
 
 config.TRAIN.RESUME = False
 config.TRAIN.CHECKPOINT = './data/checkpoint'
@@ -125,8 +126,9 @@ POSE_RESNET.NUM_DECONV_FILTERS = [256, 256, 256]
 POSE_RESNET.NUM_DECONV_KERNELS = [4, 4, 4]
 POSE_RESNET.FINAL_CONV_KERNEL = 1
 POSE_RESNET.TARGET_TYPE = 'gaussian'
-POSE_RESNET.HEATMAP_SIZE = [64, 64]  # width * height, ex: 24 * 32
+POSE_RESNET.HEATMAP_SIZE = [48, 64]  # width * height, ex: 24 * 32
 POSE_RESNET.SIGMA = 2
+POSE_RESNET.FEAT_SIZE = [8, 6]
 
 MODEL_EXTRAS = {
     'pose_resnet': POSE_RESNET,

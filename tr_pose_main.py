@@ -7,13 +7,16 @@ import torch.multiprocessing as mp
 
 from utils.logger import setup_logger, log_every_n
 from dataset.data_factory import DataFactory
-from model.upt.upt import build_detector
+from model.upt.TRPose import build_tr_pose
 from dataset.data_factory import custom_collate
 from config.upt_vcoco_config import config, update_config_by_yaml
 from engine.upt_engine import build_upt_engine
 from utils import misc
-
+from loguru import logger
 from utils.draw_tensorboard import TensorWriter
+from loss.simplebaseline_criterion import JointsMSELoss
+from engine.tr_pose_engine import build_tr_pose_engine
+from utils import keypoint
 
 
 def get_parse_args():
@@ -25,18 +28,6 @@ def get_parse_args():
     parser.add_argument("--world_size", default=1, type=int, help="World size")
     parser.add_argument("-nr", "--nr", default=0, type=int,
                         help="ranking within the nodes")
-    parser.add_argument(
-        "--cache_dir",
-        default="data/cache",
-        type=str,
-        help="cache directory")
-    parser.add_argument("--port", default="8888", type=str)
-    parser.add_argument(
-        "--pretrained_path",
-        default="data/upt-r50-vcoco.pt",
-        type=str,
-        help="model pretrained path")
-    parser.add_argument("--cache_epoch", default=19, type=int)
     parser.add_argument(
         '--partitions',
         nargs='+',
@@ -57,6 +48,7 @@ def get_parse_args():
         help="config written by yaml path")
 
     return parser
+
 
 def main(rank, args, config):
     # whether to use DDP
@@ -99,35 +91,21 @@ def main(rank, args, config):
         sampler=torch.utils.data.SequentialSampler(testset)
     )
 
-    log_every_n(20, "loaded data loader")
+    logger.info("==> loaded data loader")
     if config.DATASET.NAME == "hicodet":
         object_to_target = train_loader.dataset.dataset.object_to_verb
         args.num_classes = 117
     elif config.DATASET.NAME == "mscoco2014":
         object_to_target = list(
             train_loader.dataset.dataset.object_to_action.values())
-    upt = build_detector(config, args, object_to_target)
-    upt_trainer = build_upt_engine(upt, config, args)
 
-    upt_trainer.update_train_dataloader(train_loader)
-    upt_trainer.update_val_dataloader(test_loader)
-
-    if config.IS_TRAIN:
-        upt_trainer.train(evaluate=False)
-
-    if config.CACHE:
-        net_state_dict = torch.load(
-            args.pretrained_path,
-            map_location="cpu")
-        upt = build_detector(config, args, object_to_target)
-        upt.load_state_dict(net_state_dict["model_state_dict"], strict=False)
-        print("loaded pretrained model")
-        upt_trainer.reload_eval_model_in_epoch(upt)
-        upt_trainer.cache_vcoco(args.cache_epoch, args.cache_dir)
-
-    # else:
-    #     upt_trainer.update_test_dataloader(test_loader)
-    #     upt_trainer.eval()
+    model = build_tr_pose(config, args)
+    criterion = JointsMSELoss()
+    acc = keypoint.accuracy
+    tr_pose_engine = build_tr_pose_engine(model, criterion, acc, config, args)
+    if not config.IS_TRAIN:
+        return
+    tr_pose_engine.train()
 
 
 if __name__ == '__main__':

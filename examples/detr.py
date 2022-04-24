@@ -2,8 +2,8 @@ import argparse
 
 import torch
 from config import config
-from model.ds import NestedTensor, nested_tensor_from_tensor_list
-from model.detr import build_detr
+from utils.misc import NestedTensor, nested_tensor_from_tensor_list
+from model.detr.detr import build_detr
 
 
 def get_parse_args():
